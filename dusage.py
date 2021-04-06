@@ -33,10 +33,11 @@ def shell_command(command):
     )
 
 
-def space_quota(account, flag):
-    _, _, space_used, space_limit, inodes_used, inodes_limit = shell_command(
+def space_quota(account, flag, pool):
+    output = shell_command(
         f"beegfs-ctl --getquota {flag} {account} --csv | grep {account}"
-    ).split(",")
+    ).split("\n")[pool]
+    _, _, space_used, space_limit, inodes_used, inodes_limit = output.split(",")
 
     space_used_human = bytes_to_human(int(space_used))
 
@@ -63,7 +64,7 @@ def space_quota(account, flag):
     )
 
 
-def create_row(path, account, flag, csv):
+def create_row(path, account, flag, csv, pool):
     (
         space_used,
         space_limit,
@@ -71,7 +72,8 @@ def create_row(path, account, flag, csv):
         inodes_used,
         inodes_limit,
         inodes_ratio,
-    ) = space_quota(account, flag)
+    ) = space_quota(account, flag, pool)
+
     if space_limit == "-":
         has_backup = "no"
     else:
@@ -90,7 +92,21 @@ def create_row(path, account, flag, csv):
                 inodes_used = cf.orange(inodes_used)
             if inodes_ratio > 0.8:
                 inodes_used = cf.red(inodes_used)
-    return [path, has_backup, space_used, space_limit, inodes_used, inodes_limit]
+
+    return [
+        path,
+        str(pool + 1),
+        has_backup,
+        space_used,
+        space_limit,
+        inodes_used,
+        inodes_limit,
+    ]
+
+
+def row_worth_showing(row):
+    inodes_used = row[5]
+    return inodes_used != "0"
 
 
 def groups(account):
@@ -125,6 +141,7 @@ def main(user, csv):
 
     headers = [
         "path",
+        "pool",
         "backup",
         "space used",
         "quota",
@@ -133,9 +150,24 @@ def main(user, csv):
     ]
     headers_blue = list(map(cf.blue, headers))
 
+    # a bit convoluted way to figure out how many storage pools there are
+    num_pools = len(
+        shell_command(f"beegfs-ctl --getquota --uid {user} --csv | grep {user}").split(
+            "\n"
+        )
+    )
+
     table = []
-    table.append(create_row(f"/cluster/home/{user}", f"{user}_g", "--gid", csv))
-    table.append(create_row(f"/cluster/work/users/{user}", user, "--uid", csv))
+
+    for pool in range(num_pools):
+        row = create_row(f"/cluster/home/{user}", f"{user}_g", "--gid", csv, pool)
+        if row_worth_showing(row):
+            table.append(row)
+
+    for pool in range(num_pools):
+        row = create_row(f"/cluster/work/users/{user}", user, "--uid", csv, pool)
+        if row_worth_showing(row):
+            table.append(row)
 
     for group in groups(user):
         # for the moment we don't list NIRD information since the quota
@@ -144,9 +176,10 @@ def main(user, csv):
             path = f"/cluster/projects/{group}"
             # some groups are not folders but only to control access
             if os.path.isdir(path):
-                r = create_row(path, group, "--gid", csv)
-                space_used = r[2].strip()
-                table.append(r)
+                for pool in range(num_pools):
+                    row = create_row(path, group, "--gid", csv, pool)
+                    if row_worth_showing(row):
+                        table.append(row)
 
     if csv:
         print(",".join(headers))
