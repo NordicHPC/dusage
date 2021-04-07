@@ -176,7 +176,7 @@ def main(user, csv):
             table.append(row)
 
     for pool in range(num_pools):
-        row = create_row(f"/cluster/work/users/{user}", user, "--uid", csv, pool)
+        row = create_row(f"/cluster/work/users/{user}", user, "--gid", csv, pool)
         if row_worth_showing(row):
             table.append(row)
 
