@@ -25,6 +25,16 @@ def bytes_to_human(n):
     return None
 
 
+def number_grouped(n):
+    """
+    Prints 1234567 as 1 234 567 to make it easier to read.
+    """
+    if n.isdigit():
+        return str("{:,}".format(int(n)).replace(",", " "))
+    else:
+        return n
+
+
 def shell_command(command):
     return (
         subprocess.check_output(command, shell=True, stderr=subprocess.DEVNULL)
@@ -34,9 +44,8 @@ def shell_command(command):
 
 
 def space_quota(account, flag, pool):
-    output = shell_command(
-        f"beegfs-ctl --getquota {flag} {account} --csv | grep {account}"
-    ).split("\n")[pool]
+    command = f"beegfs-ctl --getquota {flag} {account} --csv | grep {account}"
+    output = shell_command(command).split("\n")[pool]
     _, _, space_used, space_limit, inodes_used, inodes_limit = output.split(",")
 
     space_used_human = bytes_to_human(int(space_used))
@@ -92,6 +101,8 @@ def create_row(path, account, flag, csv, pool):
                 inodes_used = cf.orange(inodes_used)
             if inodes_ratio > 0.8:
                 inodes_used = cf.red(inodes_used)
+        inodes_used = number_grouped(inodes_used)
+        inodes_limit = number_grouped(inodes_limit)
 
     return [
         path,
