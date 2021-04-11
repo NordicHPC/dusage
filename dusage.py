@@ -96,13 +96,13 @@ def create_row(path, account, flag, csv, pool):
             if space_ratio > 0.85:
                 space_used = cf.red(space_used)
     if not csv:
+        inodes_used = number_grouped(inodes_used)
+        inodes_limit = number_grouped(inodes_limit)
         if inodes_ratio is not None:
             if inodes_ratio > 0.5:
                 inodes_used = cf.orange(inodes_used)
             if inodes_ratio > 0.8:
                 inodes_used = cf.red(inodes_used)
-        inodes_used = number_grouped(inodes_used)
-        inodes_limit = number_grouped(inodes_limit)
 
     return [
         path,
