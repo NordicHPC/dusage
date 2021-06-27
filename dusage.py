@@ -198,7 +198,7 @@ def main(user, csv):
         print(
             "\n(*) this script is still being tested, unsure whether the backup information is correct"
         )
-        print("    please send suggestions/corrections to radovan.bast@uit.no")
+        print("    please report issues at https://github.com/NordicHPC/dusage")
 
 
 if __name__ == "__main__":
