@@ -35,6 +35,11 @@ def number_grouped(n):
         return n
 
 
+def command_is_available(command) -> bool:
+    status, result = subprocess.getstatusoutput(command)
+    return "command not found" not in result
+
+
 def shell_command(command):
     return (
         subprocess.check_output(command, shell=True, stderr=subprocess.DEVNULL)
@@ -43,46 +48,94 @@ def shell_command(command):
     )
 
 
-def space_quota(account, flag):
-    command = f"beegfs-ctl --getquota {flag} {account} --csv | grep {account}"
+def extract_beegfs(account):
+    command = f"beegfs-ctl --getquota --gid {account} --csv | grep {account}"
     # 0-th element since we only consider the first pool
     output = shell_command(command).split("\n")[0]
     _, _, space_used, space_limit, inodes_used, inodes_limit = output.split(",")
-
-    space_used_human = bytes_to_human(int(space_used))
-
     if space_limit == "unlimited":
-        space_limit_human = "-"
-        space_ratio = None
-    else:
-        space_limit_human = bytes_to_human(int(space_limit))
-        space_ratio = float(space_used) / float(space_limit)
-
+        space_limit = "-"
     if inodes_limit == "unlimited":
         inodes_limit = "-"
-        inodes_ratio = None
-    else:
-        inodes_ratio = float(inodes_used) / float(inodes_limit)
-
+    space_limit_soft = space_limit
+    inodes_limit_soft = inodes_limit
     return (
-        space_used_human,
-        space_limit_human,
-        space_ratio,
+        space_used,
+        space_limit_soft,
+        space_limit,
         inodes_used,
+        inodes_limit_soft,
         inodes_limit,
-        inodes_ratio,
     )
 
 
-def create_row(path, account, flag, csv):
+def extract_lustre(account):
+    command = f"lfs quota -q -g {account} /cluster | grep /cluster"
+    output = shell_command(command)
+    (
+        _,
+        space_used,
+        space_limit_soft,
+        space_limit,
+        _,
+        inodes_used,
+        inodes_limit_soft,
+        inodes_limit,
+        _,
+    ) = output.split()
+    space_used = space_used.replace("*", "")
+
+    # all numbers are in KiB
+    space_used = 1024 * int(space_used)
+    if space_limit_soft == "0":
+        space_limit_soft = "-"
+    else:
+        space_limit_soft = 1024 * int(space_limit_soft)
+    if space_limit == "0":
+        space_limit = "-"
+    else:
+        space_limit = 1024 * int(space_limit)
+
+    if inodes_limit_soft == "0":
+        inodes_limit_soft = "-"
+    if inodes_limit == "0":
+        inodes_limit = "-"
+
+    return (
+        space_used,
+        space_limit_soft,
+        space_limit,
+        inodes_used,
+        inodes_limit_soft,
+        inodes_limit,
+    )
+
+
+def create_row(run_command_and_extract, account, path, csv, show_soft_limits):
     (
         space_used,
+        space_limit_soft,
         space_limit,
-        space_ratio,
         inodes_used,
+        inodes_limit_soft,
         inodes_limit,
-        inodes_ratio,
-    ) = space_quota(account, flag)
+    ) = run_command_and_extract(account)
+
+    if space_limit_soft != "-":
+        space_limit_soft = bytes_to_human(int(space_limit_soft))
+
+    if space_limit == "-":
+        space_ratio = 0.0
+    else:
+        space_ratio = float(space_used) / float(space_limit)
+        space_limit = bytes_to_human(int(space_limit))
+
+    if inodes_limit == "-":
+        inodes_ratio = 0.0
+    else:
+        inodes_ratio = float(inodes_used) / float(inodes_limit)
+
+    space_used = bytes_to_human(int(space_used))
 
     if space_limit == "-":
         has_backup = "no"
@@ -91,28 +144,44 @@ def create_row(path, account, flag, csv):
             has_backup = "yes"
         else:
             has_backup = cf.green("yes")
-        if not csv:
-            if space_ratio > 0.7:
-                space_used = cf.orange(space_used)
-            if space_ratio > 0.85:
-                space_used = cf.red(space_used)
+
+    if space_limit != "-" and not csv:
+        if space_ratio > 0.7:
+            space_used = cf.orange(space_used)
+        if space_ratio > 0.85:
+            space_used = cf.red(space_used)
+
     if not csv:
         inodes_used = number_grouped(inodes_used)
-        inodes_limit = number_grouped(inodes_limit)
-        if inodes_ratio is not None:
+        if inodes_limit_soft != "-":
+            inodes_limit_soft = number_grouped(inodes_limit_soft)
+        if inodes_limit != "-":
+            inodes_limit = number_grouped(inodes_limit)
             if inodes_ratio > 0.5:
                 inodes_used = cf.orange(inodes_used)
             if inodes_ratio > 0.8:
                 inodes_used = cf.red(inodes_used)
 
-    return [
-        path,
-        has_backup,
-        space_used,
-        space_limit,
-        inodes_used,
-        inodes_limit,
-    ]
+    if show_soft_limits:
+        return [
+            path,
+            has_backup,
+            space_used,
+            space_limit_soft,
+            space_limit,
+            inodes_used,
+            inodes_limit_soft,
+            inodes_limit,
+        ]
+    else:
+        return [
+            path,
+            has_backup,
+            space_used,
+            space_limit,
+            inodes_used,
+            inodes_limit,
+        ]
 
 
 def row_worth_showing(row):
@@ -150,30 +219,55 @@ def main(user, csv):
     except:
         sys.exit(cf.red("ERROR: ") + f"user {user} not found")
 
-    headers = [
-        "path",
-        "backup",
-        "space used",
-        "quota",
-        "files/folders",
-        "quota",
-    ]
+    if command_is_available("beegfs-ctl -h"):
+        # this is a beegfs system
+        run_command_and_extract = extract_beegfs
+        show_soft_limits = False
+        headers = [
+            "path",
+            "backup",
+            "space used",
+            "quota",
+            "files/folders",
+            "quota",
+        ]
+    elif command_is_available("lfs --list-commands"):
+        # this is a lustre system
+        run_command_and_extract = extract_lustre
+        show_soft_limits = True
+        headers = [
+            "path",
+            "backup",
+            "space used",
+            "quota (soft)",
+            "quota",
+            "files/folders",
+            "quota (soft)",
+            "quota",
+        ]
+    else:
+        sys.exit("ERROR: unknown file system")
+
     headers_blue = list(map(cf.blue, headers))
-
-    # a bit convoluted way to figure out how many storage pools there are
-    # num_pools = len(
-    #     shell_command(f"beegfs-ctl --getquota --uid {user} --csv | grep {user}").split(
-    #         "\n"
-    #     )
-    # )
-
     table = []
 
-    row = create_row(f"/cluster/home/{user}", f"{user}_g", "--gid", csv)
+    row = create_row(
+        run_command_and_extract,
+        f"{user}_g",
+        f"/cluster/home/{user}",
+        csv,
+        show_soft_limits,
+    )
     if row_worth_showing(row):
         table.append(row)
 
-    row = create_row(f"/cluster/work/users/{user}", user, "--gid", csv)
+    row = create_row(
+        run_command_and_extract,
+        user,
+        f"/cluster/work/users/{user}",
+        csv,
+        show_soft_limits,
+    )
     if row_worth_showing(row):
         table.append(row)
 
@@ -184,7 +278,9 @@ def main(user, csv):
             path = f"/cluster/projects/{group}"
             # some groups are not folders but only to control access
             if os.path.isdir(path):
-                row = create_row(path, group, "--gid", csv)
+                row = create_row(
+                    run_command_and_extract, group, path, csv, show_soft_limits
+                )
                 if row_worth_showing(row):
                     table.append(row)
 
