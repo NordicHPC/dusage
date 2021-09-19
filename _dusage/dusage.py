@@ -14,6 +14,8 @@ import sys
 import getpass
 import os
 
+__version__ = "0.1.0"
+
 
 def bytes_to_human(n):
     for unit in ["", "KiB", "MiB", "GiB", "TiB", "PiB"]:
@@ -303,6 +305,7 @@ def main(user, csv):
             print(",".join(row))
     else:
         print()
+        print(f"dusage v{__version__}")
         print(tabulate(table, headers_blue, tablefmt="simple", stralign="right"))
         if show_soft_limits:
             print(
