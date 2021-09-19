@@ -48,8 +48,8 @@ def shell_command(command):
     )
 
 
-def extract_beegfs(account):
-    command = f"beegfs-ctl --getquota --gid {account} --csv | grep {account}"
+def extract_beegfs(flag, account):
+    command = f"beegfs-ctl --getquota --{flag}id {account} --csv | grep {account}"
     # 0-th element since we only consider the first pool
     output = shell_command(command).split("\n")[0]
     _, _, space_used, space_limit, inodes_used, inodes_limit = output.split(",")
@@ -69,8 +69,8 @@ def extract_beegfs(account):
     )
 
 
-def extract_lustre(account):
-    command = f"lfs quota -q -g {account} /cluster | grep /cluster"
+def extract_lustre(flag, account):
+    command = f"lfs quota -q -{flag} {account} /cluster | grep /cluster"
     output = shell_command(command)
     (
         _,
@@ -111,7 +111,7 @@ def extract_lustre(account):
     )
 
 
-def create_row(run_command_and_extract, account, path, csv, show_soft_limits):
+def create_row(run_command_and_extract, flag, account, path, csv, show_soft_limits):
     (
         space_used,
         space_limit_soft,
@@ -119,7 +119,7 @@ def create_row(run_command_and_extract, account, path, csv, show_soft_limits):
         inodes_used,
         inodes_limit_soft,
         inodes_limit,
-    ) = run_command_and_extract(account)
+    ) = run_command_and_extract(flag, account)
 
     if space_limit_soft != "-":
         space_limit_soft = bytes_to_human(int(space_limit_soft))
@@ -228,7 +228,7 @@ def main(user, csv):
             "backup",
             "space used",
             "quota",
-            "files/folders",
+            "files",
             "quota",
         ]
     elif command_is_available("lfs --list-commands"):
@@ -239,11 +239,11 @@ def main(user, csv):
             "path",
             "backup",
             "space used",
-            "quota (soft)",
-            "quota",
-            "files/folders",
-            "quota (soft)",
-            "quota",
+            "quota (s)",
+            "quota (h)",
+            "files",
+            "quota (s)",
+            "quota (h)",
         ]
     else:
         sys.exit("ERROR: unknown file system")
@@ -253,6 +253,18 @@ def main(user, csv):
 
     row = create_row(
         run_command_and_extract,
+        "u",
+        f"{user}",
+        "/cluster",
+        csv,
+        show_soft_limits,
+    )
+    if row_worth_showing(row):
+        table.append(row)
+
+    row = create_row(
+        run_command_and_extract,
+        "g",
         f"{user}_g",
         f"/cluster/home/{user}",
         csv,
@@ -263,6 +275,7 @@ def main(user, csv):
 
     row = create_row(
         run_command_and_extract,
+        "g",
         user,
         f"/cluster/work/users/{user}",
         csv,
@@ -279,7 +292,7 @@ def main(user, csv):
             # some groups are not folders but only to control access
             if os.path.isdir(path):
                 row = create_row(
-                    run_command_and_extract, group, path, csv, show_soft_limits
+                    run_command_and_extract, "g", group, path, csv, show_soft_limits
                 )
                 if row_worth_showing(row):
                     table.append(row)
@@ -290,11 +303,18 @@ def main(user, csv):
             print(",".join(row))
     else:
         print()
-        print(tabulate(table, headers_blue, tablefmt="psql", stralign="right"))
+        print(tabulate(table, headers_blue, tablefmt="simple", stralign="right"))
+        if show_soft_limits:
+            print(
+                "\n- quota (s): Soft limit. You can stay above this but only for a while (not sure how long)."
+            )
+            print(
+                "- quota (h): Hard limit. You need to move/remove data/files to be able to write."
+            )
         print(
-            "\n(*) this script is still being tested, unsure whether the backup information is correct"
+            "\n- This script is still being tested, unsure whether the backup information is correct."
         )
-        print("    please report issues at https://github.com/NordicHPC/dusage")
+        print("  Please report issues at https://github.com/NordicHPC/dusage.")
 
 
 if __name__ == "__main__":
