@@ -1,6 +1,7 @@
 # dusage
 
 Show disk usage and quota on a cluster.
-Currently only supports BeeGFS but hopefully soon also Lustre.
+Supports BeeGFS and Lustre but is probably still too hard-coded for "our" clusters
+and path locations.
 
 ![screenshot](img/screenshot.png)
