@@ -13,8 +13,9 @@ import click
 import sys
 import getpass
 import os
+import socket
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 
 def bytes_to_human(n):
@@ -50,7 +51,7 @@ def shell_command(command):
     )
 
 
-def extract_beegfs(flag, account):
+def extract_beegfs(flag, account, _path):
     command = f"beegfs-ctl --getquota --{flag}id {account} --csv | grep {account}"
     # 0-th element since we only consider the first pool
     output = shell_command(command).split("\n")[0]
@@ -71,8 +72,7 @@ def extract_beegfs(flag, account):
     )
 
 
-def extract_lustre(flag, account):
-    command = f"lfs quota -q -{flag} {account} /cluster | grep /cluster"
+def _extract_lustre_convert(command):
     output = shell_command(command)
     (
         _,
@@ -113,6 +113,16 @@ def extract_lustre(flag, account):
     )
 
 
+def extract_lustre(flag, account, path):
+    command = f"lfs quota -q -{flag} {account} /cluster | grep /cluster"
+    return _extract_lustre_convert(command)
+
+
+def extract_lustre_by_project_id(flag, account, path):
+    command = f"lfs quota -q -p $(lfs project -d {path} | awk '{{print $1}}') /cluster"
+    return _extract_lustre_convert(command)
+
+
 def create_row(run_command_and_extract, flag, account, path, csv, show_soft_limits):
     (
         space_used,
@@ -121,7 +131,7 @@ def create_row(run_command_and_extract, flag, account, path, csv, show_soft_limi
         inodes_used,
         inodes_limit_soft,
         inodes_limit,
-    ) = run_command_and_extract(flag, account)
+    ) = run_command_and_extract(flag, account, path)
 
     if space_limit_soft != "-":
         space_limit_soft = bytes_to_human(int(space_limit_soft))
@@ -221,6 +231,7 @@ def main(user, csv):
     except:
         sys.exit(cf.red("ERROR: ") + f"user {user} not found")
 
+    skip_user_rows = False
     if command_is_available("beegfs-ctl -h"):
         # this is a beegfs system
         run_command_and_extract = extract_beegfs
@@ -235,7 +246,13 @@ def main(user, csv):
         ]
     elif command_is_available("lfs --list-commands"):
         # this is a lustre system
-        run_command_and_extract = extract_lustre
+        if "betzy" in socket.gethostname().lower():
+            # sorry for this hardcoding
+            # please generalize if you know how to
+            run_command_and_extract = extract_lustre_by_project_id
+            skip_user_rows = True
+        else:
+            run_command_and_extract = extract_lustre
         show_soft_limits = True
         headers = [
             "path",
@@ -253,16 +270,17 @@ def main(user, csv):
     headers_blue = list(map(cf.blue, headers))
     table = []
 
-    row = create_row(
-        run_command_and_extract,
-        "u",
-        f"{user}",
-        "/cluster",
-        csv,
-        show_soft_limits,
-    )
-    if row_worth_showing(row):
-        table.append(row)
+    if not skip_user_rows:
+        row = create_row(
+            run_command_and_extract,
+            "u",
+            f"{user}",
+            "/cluster",
+            csv,
+            show_soft_limits,
+        )
+        if row_worth_showing(row):
+            table.append(row)
 
     row = create_row(
         run_command_and_extract,
@@ -275,16 +293,17 @@ def main(user, csv):
     if row_worth_showing(row):
         table.append(row)
 
-    row = create_row(
-        run_command_and_extract,
-        "g",
-        user,
-        f"/cluster/work/users/{user}",
-        csv,
-        show_soft_limits,
-    )
-    if row_worth_showing(row):
-        table.append(row)
+    if not skip_user_rows:
+        row = create_row(
+            run_command_and_extract,
+            "g",
+            user,
+            f"/cluster/work/users/{user}",
+            csv,
+            show_soft_limits,
+        )
+        if row_worth_showing(row):
+            table.append(row)
 
     for group in groups(user):
         # for the moment we don't list NIRD information since the quota
