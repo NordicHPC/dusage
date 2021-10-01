@@ -15,7 +15,7 @@ import getpass
 import os
 import socket
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 
 def bytes_to_human(n):
@@ -86,6 +86,7 @@ def _extract_lustre_convert(command):
         _,
     ) = output.split()
     space_used = space_used.replace("*", "")
+    inodes_used = inodes_used.replace("*", "")
 
     # all numbers are in KiB
     space_used = 1024 * int(space_used)
