@@ -15,7 +15,7 @@ import getpass
 import os
 import socket
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 
 def bytes_to_human(n):
@@ -156,13 +156,13 @@ def create_row(run_command_and_extract, flag, account, path, csv, show_soft_limi
         if csv:
             has_backup = "yes"
         else:
-            has_backup = cf.green("yes")
+            has_backup = colorize("yes", "green")
 
     if space_limit != "-" and not csv:
         if space_ratio > 0.7:
-            space_used = cf.orange(space_used)
+            space_used = colorize(space_used, "orange")
         if space_ratio > 0.85:
-            space_used = cf.red(space_used)
+            space_used = colorize(space_used, "red")
 
     if not csv:
         inodes_used = number_grouped(inodes_used)
@@ -171,9 +171,9 @@ def create_row(run_command_and_extract, flag, account, path, csv, show_soft_limi
         if inodes_limit != "-":
             inodes_limit = number_grouped(inodes_limit)
             if inodes_ratio > 0.5:
-                inodes_used = cf.orange(inodes_used)
+                inodes_used = colorize(inodes_used, "orange")
             if inodes_ratio > 0.8:
-                inodes_used = cf.red(inodes_used)
+                inodes_used = colorize(inodes_used, "red")
 
     if show_soft_limits:
         return [
@@ -210,6 +210,15 @@ def groups(account):
     return l
 
 
+def colorize(text, color):
+    # calls cf.color(text)
+    return getattr(cf, color)(text)
+
+
+def dont_colorize(text, color):
+    return text
+
+
 user = getpass.getuser()
 
 
@@ -222,15 +231,24 @@ user = getpass.getuser()
     is_flag=True,
     help="Print information as comma-separated values for parsing by other scripts.",
 )
-def main(user, csv):
+@click.option(
+    "--no-colors",
+    is_flag=True,
+    help="Disable colors.",
+)
+def main(user, csv, no_colors):
     cf.update_palette({"blue": "#2e54ff"})
     cf.update_palette({"green": "#08a91e"})
     cf.update_palette({"orange": "#ff5733"})
 
+    if no_colors:
+        # redefine the colorize function to do nothing
+        colorize.__code__ = dont_colorize.__code__
+
     try:
         _ = shell_command(f"id {user}")
     except:
-        sys.exit(cf.red("ERROR: ") + f"user {user} not found")
+        sys.exit(colorize("ERROR: ", "red") + f"user {user} not found")
 
     skip_user_rows = False
     if command_is_available("beegfs-ctl -h"):
@@ -268,7 +286,7 @@ def main(user, csv):
     else:
         sys.exit("ERROR: unknown file system")
 
-    headers_blue = list(map(cf.blue, headers))
+    headers_blue = [colorize(h, "blue") for h in headers]
     table = []
 
     if not skip_user_rows:
