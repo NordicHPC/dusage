@@ -39,7 +39,7 @@ def number_grouped(n):
 
 
 def command_is_available(command) -> bool:
-    status, result = subprocess.getstatusoutput(command)
+    _, result = subprocess.getstatusoutput(command)
     return "command not found" not in result
 
 
