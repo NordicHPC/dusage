@@ -15,7 +15,7 @@ import getpass
 import os
 import socket
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 
 def bytes_to_human(n):
@@ -206,7 +206,9 @@ def groups(account):
     l = shell_command(f"id -Gn {account}").split()
     # removing these two because we treat them separately outside
     l.remove(account)
-    l.remove(f"{account}_g")
+    account_g = f"{account}_g"
+    if account_g in l:
+        l.remove(account_g)
     return l
 
 
