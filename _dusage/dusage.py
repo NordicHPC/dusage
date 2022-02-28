@@ -286,7 +286,7 @@ def main(user, csv, no_colors):
             "quota (h)",
         ]
     else:
-        sys.exit("ERROR: unknown file system")
+        sys.exit("ERROR: unknown file system - this tool supports BeeGFS or Lustre")
 
     headers_blue = [colorize(h, "blue") for h in headers]
     table = []
