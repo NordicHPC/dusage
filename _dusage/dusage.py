@@ -15,7 +15,7 @@ import getpass
 import os
 import socket
 
-__version__ = "0.1.4"
+__version__ = "0.2.0"
 
 
 def bytes_to_human(n):
@@ -44,11 +44,28 @@ def command_is_available(command) -> bool:
 
 
 def shell_command(command):
-    return (
-        subprocess.check_output(command, shell=True, stderr=subprocess.DEVNULL)
-        .decode("utf-8")
-        .strip()
-    )
+    try:
+        output = (
+            subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
+            .decode("utf-8")
+            .strip()
+        )
+    except subprocess.CalledProcessError as e:
+        sys.exit(colorize("ERROR: ", "red") + e.output.decode("utf-8"))
+    return output
+
+
+def anonymize_output(table, user, groups):
+    account_names = [user] + groups
+    new_table = []
+    for row in table:
+        path = row[0]
+        for account in account_names:
+            if path.endswith(account):
+                path = path.replace(account, "*****")
+                break
+        new_table.append([path] + row[1:])
+    return new_table
 
 
 def extract_beegfs(flag, account, _path):
@@ -202,7 +219,7 @@ def row_worth_showing(row):
     return inodes_used != "0"
 
 
-def groups(account):
+def collect_groups(account):
     l = shell_command(f"id -Gn {account}").split()
     # removing these two because we treat them separately outside
     l.remove(account)
@@ -221,13 +238,12 @@ def dont_colorize(text, color):
     return text
 
 
-user = getpass.getuser()
+default_user = getpass.getuser()
 
 
 @click.command()
-@click.option(
-    "-u", "--user", default=user, help=f"The username to check (default: {user})."
-)
+@click.option("-u", "--user", help=f"The username to check (default: {default_user}).")
+@click.option("-p", "--project", help=f"The allocation project.")
 @click.option(
     "--csv",
     is_flag=True,
@@ -238,7 +254,7 @@ user = getpass.getuser()
     is_flag=True,
     help="Disable colors.",
 )
-def main(user, csv, no_colors):
+def main(user, project, csv, no_colors):
     cf.update_palette({"blue": "#2e54ff"})
     cf.update_palette({"green": "#08a91e"})
     cf.update_palette({"orange": "#ff5733"})
@@ -247,12 +263,24 @@ def main(user, csv, no_colors):
         # redefine the colorize function to do nothing
         colorize.__code__ = dont_colorize.__code__
 
+    if user and project:
+        sys.exit(
+            colorize("ERROR: ", "red")
+            + "please specify user (-u) or project (-p) but not both"
+        )
+
+    if user is None:
+        user = default_user
+
     try:
         _ = shell_command(f"id {user}")
     except:
         sys.exit(colorize("ERROR: ", "red") + f"user {user} not found")
 
     skip_user_rows = False
+    if project is not None:
+        skip_user_rows = True
+
     if command_is_available("beegfs-ctl -h"):
         # this is a beegfs system
         run_command_and_extract = extract_beegfs
@@ -303,16 +331,17 @@ def main(user, csv, no_colors):
         if row_worth_showing(row):
             table.append(row)
 
-    row = create_row(
-        run_command_and_extract,
-        "g",
-        f"{user}_g",
-        f"/cluster/home/{user}",
-        csv,
-        show_soft_limits,
-    )
-    if row_worth_showing(row):
-        table.append(row)
+    if project is None:
+        row = create_row(
+            run_command_and_extract,
+            "g",
+            f"{user}_g",
+            f"/cluster/home/{user}",
+            csv,
+            show_soft_limits,
+        )
+        if row_worth_showing(row):
+            table.append(row)
 
     if not skip_user_rows:
         row = create_row(
@@ -326,7 +355,12 @@ def main(user, csv, no_colors):
         if row_worth_showing(row):
             table.append(row)
 
-    for group in groups(user):
+    if project is None:
+        groups = collect_groups(user)
+    else:
+        groups = [project]
+
+    for group in groups:
         # for the moment we don't list NIRD information since the quota
         # information is incorrect anyway at the moment
         if not re.match("ns[0-9][0-9][0-9][0-9]k", group.lower()):
@@ -338,6 +372,15 @@ def main(user, csv, no_colors):
                 )
                 if row_worth_showing(row):
                     table.append(row)
+
+    # for creating screenshots
+    if os.environ.get("DUSAGE_ANONYMIZE_OUTPUT"):
+        table = anonymize_output(table, user, groups)
+
+    if table == [] and project is not None:
+        sys.exit(
+            colorize("ERROR: ", "red") + f"the project {project} does not seem to exist"
+        )
 
     if csv:
         print(",".join(headers))
