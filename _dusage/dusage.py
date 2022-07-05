@@ -6,6 +6,7 @@ Inspired by dusage (written by Lorand Szentannai).
 """
 
 import subprocess
+from shutil import which
 import colorful as cf
 from tabulate import tabulate
 import re
@@ -15,7 +16,7 @@ import getpass
 import os
 import socket
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 
 def bytes_to_human(n):
@@ -39,8 +40,7 @@ def number_grouped(n):
 
 
 def command_is_available(command) -> bool:
-    _, result = subprocess.getstatusoutput(command)
-    return "command not found" not in result
+    return which(command) is not None
 
 
 def shell_command(command):
@@ -281,7 +281,7 @@ def main(user, project, csv, no_colors):
     if project is not None:
         skip_user_rows = True
 
-    if command_is_available("beegfs-ctl -h"):
+    if command_is_available("beegfs-ctl"):
         # this is a beegfs system
         run_command_and_extract = extract_beegfs
         show_soft_limits = False
@@ -293,7 +293,7 @@ def main(user, project, csv, no_colors):
             "files",
             "quota",
         ]
-    elif command_is_available("lfs --list-commands"):
+    elif command_is_available("lfs"):
         # this is a lustre system
         if "betzy" in socket.gethostname().lower():
             # sorry for this hardcoding
