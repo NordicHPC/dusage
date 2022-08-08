@@ -392,8 +392,12 @@ def main(user, project, csv, no_colors):
         print(tabulate(table, headers_blue, tablefmt="simple", stralign="right"))
         if show_soft_limits:
             print(
-                "\n- quota (s): Soft limit. You can stay above this but only for a while (not sure how long)."
+                "\n- quota (s): Soft limit. You can stay above this by default for 1 week."
             )
+            print(
+                "             You can check the actual grace period with `lfs quota -u -t /somepath`"
+            )
+            print("             or `lfs quota -g -t /somepath`")
             print(
                 "- quota (h): Hard limit. You need to move/remove data/files to be able to write."
             )
