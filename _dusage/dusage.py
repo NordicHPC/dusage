@@ -402,7 +402,7 @@ def main(user, project, csv, no_colors):
                 "- quota (h): Hard limit. You need to move/remove data/files to be able to write."
             )
         print(
-            "- Backup information is for the general case, unless you have made a special agreement."
+            "\n- Backup information is for the general case, unless you have made a special agreement."
         )
         print("- Please report issues at https://github.com/NordicHPC/dusage.")
 
