@@ -16,7 +16,7 @@ import getpass
 import os
 import socket
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 
 def bytes_to_human(n):
