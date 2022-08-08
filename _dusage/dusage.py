@@ -398,9 +398,9 @@ def main(user, project, csv, no_colors):
                 "- quota (h): Hard limit. You need to move/remove data/files to be able to write."
             )
         print(
-            "\n- This script is still being tested, unsure whether the backup information is correct."
+            "- Backup information is for the general case, unless you have made a special agreement."
         )
-        print("  Please report issues at https://github.com/NordicHPC/dusage.")
+        print("- Please report issues at https://github.com/NordicHPC/dusage.")
 
 
 if __name__ == "__main__":
