@@ -16,7 +16,7 @@ import getpass
 import os
 import socket
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 
 def bytes_to_human(n):
@@ -364,14 +364,15 @@ def main(user, project, csv, no_colors):
         # for the moment we don't list NIRD information since the quota
         # information is incorrect anyway at the moment
         if not re.match("ns[0-9][0-9][0-9][0-9]k", group.lower()):
-            path = f"/cluster/projects/{group}"
-            # some groups are not folders but only to control access
-            if os.path.isdir(path):
-                row = create_row(
-                    run_command_and_extract, "g", group, path, csv, show_soft_limits
-                )
-                if row_worth_showing(row):
-                    table.append(row)
+            for path in [f"/cluster/projects/{group}", f"/cluster/shared/{group}"]:
+                if os.path.isdir(
+                    path
+                ):  # some groups are not folders but only to control access
+                    row = create_row(
+                        run_command_and_extract, "g", group, path, csv, show_soft_limits
+                    )
+                    if row_worth_showing(row):
+                        table.append(row)
 
     # for creating screenshots
     if os.environ.get("DUSAGE_ANONYMIZE_OUTPUT"):
