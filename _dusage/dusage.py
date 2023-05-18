@@ -16,16 +16,19 @@ import getpass
 import os
 import socket
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 
 
 def bytes_to_human(n):
-    for unit in ["", "KiB", "MiB", "GiB", "TiB", "PiB"]:
-        if abs(n) < sys.float_info.min:
-            return "0.0 KiB"
-        if abs(n) < 1024.0:
-            return f"{n:.1f} {unit}"
-        n /= 1024.0
+    try:
+        for unit in ["", "KiB", "MiB", "GiB", "TiB", "PiB"]:
+            if abs(n) < sys.float_info.min:
+                return "0.0 KiB"
+            if abs(n) < 1024.0:
+                return f"{n:.1f} {unit}"
+            n /= 1024.0
+    except TypeError:
+        pass
     return None
 
 
@@ -137,8 +140,16 @@ def extract_lustre(flag, account, path):
 
 
 def extract_lustre_by_project_id(flag, account, path):
-    command = f"lfs quota -q -p $(lfs project -d {path} | awk '{{print $1}}') /cluster"
-    return _extract_lustre_convert(command)
+    project_id = int(shell_command(f"lfs project -d {path} | awk '{{print $1}}'"))
+    if project_id == 0:
+        # workaround for projects on Betzy that do not have quota set
+        # in this case the path does not have quota and information would default
+        # to project ID 0 which on our cluser gave space used by entire cluster
+        return ('unknown', '-', '-', 'unknown', '-', '-')
+
+    else:
+        command = f"lfs quota -q -p {project_id} /cluster"
+        return _extract_lustre_convert(command)
 
 
 def create_row(run_command_and_extract, flag, account, path, csv, show_soft_limits):
@@ -152,20 +163,20 @@ def create_row(run_command_and_extract, flag, account, path, csv, show_soft_limi
     ) = run_command_and_extract(flag, account, path)
 
     if space_limit_soft != "-":
-        space_limit_soft = bytes_to_human(int(space_limit_soft))
+        space_limit_soft = bytes_to_human(space_limit_soft)
 
     if space_limit == "-":
         space_ratio = 0.0
     else:
         space_ratio = float(space_used) / float(space_limit)
-        space_limit = bytes_to_human(int(space_limit))
+        space_limit = bytes_to_human(space_limit)
 
     if inodes_limit == "-":
         inodes_ratio = 0.0
     else:
         inodes_ratio = float(inodes_used) / float(inodes_limit)
 
-    space_used = bytes_to_human(int(space_used))
+    space_used = bytes_to_human(space_used)
 
     if space_limit == "-":
         has_backup = "no"
