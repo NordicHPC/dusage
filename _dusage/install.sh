@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euf -o pipefail
+
 export PIP_REQUIRE_VIRTUALENV=true
 
 python3 -m venv venv
