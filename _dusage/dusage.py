@@ -16,7 +16,7 @@ import getpass
 import os
 import socket
 
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 
 
 def bytes_to_human(n):
@@ -145,7 +145,7 @@ def extract_lustre_by_project_id(flag, account, path):
         # workaround for projects on Betzy that do not have quota set
         # in this case the path does not have quota and information would default
         # to project ID 0 which on our cluser gave space used by entire cluster
-        return ('unknown', '-', '-', 'unknown', '-', '-')
+        return ("unknown", "-", "-", "unknown", "-", "-")
 
     else:
         command = f"lfs quota -q -p {project_id} /cluster"
@@ -409,7 +409,9 @@ def main(user, project, csv, no_colors):
             print(
                 "             You can check the actual grace period with `lfs quota -u -t /somepath`"
             )
-            print("             or `lfs quota -g -t /somepath`")
+            print(
+                "             or `lfs quota -g -t /somepath` or `lfs quota -p -t /somepath` (depending on the cluster)."
+            )
             print(
                 "- quota (h): Hard limit. You need to move/remove data/files to be able to write."
             )
