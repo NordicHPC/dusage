@@ -153,7 +153,7 @@ def extract_lustre_by_project_id(flag, account, path):
         return _extract_lustre_convert(command)
 
 
-def create_row(run_command_and_extract, flag, account, path, csv, show_soft_limits):
+def create_row(run_command_and_extract, flag, account, path, show_soft_limits):
     (
         space_used,
         space_limit_soft,
@@ -179,22 +179,21 @@ def create_row(run_command_and_extract, flag, account, path, csv, show_soft_limi
 
     space_used = bytes_to_human(space_used)
 
-    if space_limit != "-" and not csv:
+    if space_limit != "-":
         if space_ratio > 0.7:
             space_used = colorize(space_used, "orange")
         if space_ratio > 0.85:
             space_used = colorize(space_used, "red")
 
-    if not csv:
-        inodes_used = number_grouped(inodes_used)
-        if inodes_limit_soft != "-":
-            inodes_limit_soft = number_grouped(inodes_limit_soft)
-        if inodes_limit != "-":
-            inodes_limit = number_grouped(inodes_limit)
-            if inodes_ratio > 0.5:
-                inodes_used = colorize(inodes_used, "orange")
-            if inodes_ratio > 0.8:
-                inodes_used = colorize(inodes_used, "red")
+    inodes_used = number_grouped(inodes_used)
+    if inodes_limit_soft != "-":
+        inodes_limit_soft = number_grouped(inodes_limit_soft)
+    if inodes_limit != "-":
+        inodes_limit = number_grouped(inodes_limit)
+        if inodes_ratio > 0.5:
+            inodes_used = colorize(inodes_used, "orange")
+        if inodes_ratio > 0.8:
+            inodes_used = colorize(inodes_used, "red")
 
     if show_soft_limits:
         return [
@@ -247,16 +246,11 @@ default_user = getpass.getuser()
 @click.option("-u", "--user", help=f"The username to check (default: {default_user}).")
 @click.option("-p", "--project", help=f"The allocation project.")
 @click.option(
-    "--csv",
-    is_flag=True,
-    help="Print information as comma-separated values for parsing by other scripts.",
-)
-@click.option(
     "--no-colors",
     is_flag=True,
     help="Disable colors.",
 )
-def main(user, project, csv, no_colors):
+def main(user, project, no_colors):
     cf.update_palette({"blue": "#2e54ff"})
     cf.update_palette({"green": "#08a91e"})
     cf.update_palette({"orange": "#ff5733"})
@@ -325,7 +319,6 @@ def main(user, project, csv, no_colors):
             "u",
             f"{user}",
             "/cluster",
-            csv,
             show_soft_limits,
         )
         if row_worth_showing(row):
@@ -337,7 +330,6 @@ def main(user, project, csv, no_colors):
             "g",
             f"{user}_g",
             f"/cluster/home/{user}",
-            csv,
             show_soft_limits,
         )
         if row_worth_showing(row):
@@ -349,7 +341,6 @@ def main(user, project, csv, no_colors):
             "g",
             user,
             f"/cluster/work/users/{user}",
-            csv,
             show_soft_limits,
         )
         if row_worth_showing(row):
@@ -369,7 +360,7 @@ def main(user, project, csv, no_colors):
                     path
                 ):  # some groups are not folders but only to control access
                     row = create_row(
-                        run_command_and_extract, "g", group, path, csv, show_soft_limits
+                        run_command_and_extract, "g", group, path, show_soft_limits
                     )
                     if row_worth_showing(row):
                         table.append(row)
@@ -383,28 +374,23 @@ def main(user, project, csv, no_colors):
             colorize("ERROR: ", "red") + f"the project {project} does not seem to exist"
         )
 
-    if csv:
-        print(",".join(headers))
-        for row in table:
-            print(",".join(row))
-    else:
-        print()
-        print(f"dusage v{__version__}")
-        print(tabulate(table, headers_blue, tablefmt="simple", stralign="right"))
-        if show_soft_limits:
-            print(
-                "\n- quota (s): Soft limit. You can stay above this by default for 1 week."
-            )
-            print(
-                "             You can check the actual grace period with `lfs quota -u -t /somepath`"
-            )
-            print(
-                "             or `lfs quota -g -t /somepath` or `lfs quota -p -t /somepath` (depending on the cluster)."
-            )
-            print(
-                "- quota (h): Hard limit. You need to move/remove data/files to be able to write."
-            )
-        print("- Please report issues at https://github.com/NordicHPC/dusage.")
+    print()
+    print(f"dusage v{__version__}")
+    print(tabulate(table, headers_blue, tablefmt="simple", stralign="right"))
+    if show_soft_limits:
+        print(
+            "\n- quota (s): Soft limit. You can stay above this by default for 1 week."
+        )
+        print(
+            "             You can check the actual grace period with `lfs quota -u -t /somepath`"
+        )
+        print(
+            "             or `lfs quota -g -t /somepath` or `lfs quota -p -t /somepath` (depending on the cluster)."
+        )
+        print(
+            "- quota (h): Hard limit. You need to move/remove data/files to be able to write."
+        )
+    print("- Please report issues at https://github.com/NordicHPC/dusage.")
 
 
 if __name__ == "__main__":
