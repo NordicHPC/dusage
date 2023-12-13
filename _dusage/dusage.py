@@ -16,11 +16,12 @@ import getpass
 import os
 import socket
 
-__version__ = "0.2.5"
+__version__ = "0.2.6"
 
 
 def bytes_to_human(n):
     try:
+        n = int(n)
         for unit in ["", "KiB", "MiB", "GiB", "TiB", "PiB"]:
             if abs(n) < sys.float_info.min:
                 return "0.0 KiB"
