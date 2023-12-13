@@ -28,9 +28,8 @@ def bytes_to_human(n):
             if abs(n) < 1024.0:
                 return f"{n:.1f} {unit}"
             n /= 1024.0
-    except TypeError:
-        pass
-    return None
+    except ValueError:
+        return None
 
 
 def number_grouped(n):
