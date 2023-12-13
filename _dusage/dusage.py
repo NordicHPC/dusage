@@ -179,14 +179,6 @@ def create_row(run_command_and_extract, flag, account, path, csv, show_soft_limi
 
     space_used = bytes_to_human(space_used)
 
-    if space_limit == "-":
-        has_backup = "no"
-    else:
-        if csv:
-            has_backup = "yes"
-        else:
-            has_backup = colorize("yes", "green")
-
     if space_limit != "-" and not csv:
         if space_ratio > 0.7:
             space_used = colorize(space_used, "orange")
@@ -207,7 +199,6 @@ def create_row(run_command_and_extract, flag, account, path, csv, show_soft_limi
     if show_soft_limits:
         return [
             path,
-            has_backup,
             space_used,
             space_limit_soft,
             space_limit,
@@ -218,7 +209,6 @@ def create_row(run_command_and_extract, flag, account, path, csv, show_soft_limi
     else:
         return [
             path,
-            has_backup,
             space_used,
             space_limit,
             inodes_used,
@@ -227,7 +217,7 @@ def create_row(run_command_and_extract, flag, account, path, csv, show_soft_limi
 
 
 def row_worth_showing(row):
-    inodes_used = row[5]
+    inodes_used = row[4]
     return inodes_used != "0"
 
 
@@ -299,7 +289,6 @@ def main(user, project, csv, no_colors):
         show_soft_limits = False
         headers = [
             "path",
-            "backup",
             "space used",
             "quota",
             "files",
@@ -317,7 +306,6 @@ def main(user, project, csv, no_colors):
         show_soft_limits = True
         headers = [
             "path",
-            "backup",
             "space used",
             "quota (s)",
             "quota (h)",
@@ -416,9 +404,6 @@ def main(user, project, csv, no_colors):
             print(
                 "- quota (h): Hard limit. You need to move/remove data/files to be able to write."
             )
-        print(
-            "\n- Backup information is for the general case, unless you have made a special agreement."
-        )
         print("- Please report issues at https://github.com/NordicHPC/dusage.")
 
 
