@@ -1,16 +1,17 @@
 import sys
 import subprocess
 from dataclasses import dataclass
+from shutil import which
 
 
 @dataclass
 class Usage:
     space_used_bytes: int = 0
-    space_limit_soft_bytes: int = None
-    space_limit_hard_bytes: int = None
+    space_soft_limit_bytes: int = None
+    space_hard_limit_bytes: int = None
     inodes_used: int = 0
-    inodes_limit_soft: int = None
-    inodes_limit_hard: int = None
+    inodes_soft_limit: int = None
+    inodes_hard_limit: int = None
 
 
 def shell_command(command):
@@ -25,7 +26,11 @@ def shell_command(command):
     return output
 
 
-def extract_beegfs(flag, account, _path):
+def command_is_available(command) -> bool:
+    return which(command) is not None
+
+
+def get_usage_beegfs(flag, account):
     command = f"beegfs-ctl --getquota --{flag}id {account} --csv | grep {account}"
 
     # 0-th element since we only consider the first pool
@@ -42,9 +47,21 @@ def extract_beegfs(flag, account, _path):
 
     return Usage(
         space_used_bytes=space_used_bytes,
-        space_limit_soft_bytes=space_limit_bytes,
-        space_limit_hard_bytes=space_limit_bytes,
+        space_soft_limit_bytes=space_limit_bytes,
+        space_hard_limit_bytes=space_limit_bytes,
         inodes_used=inodes_used,
-        inodes_limit_soft=inodes_limit,
-        inodes_limit_hard=inodes_limit,
+        inodes_soft_limit=inodes_limit,
+        inodes_hard_limit=inodes_limit,
     )
+
+
+def collect_groups(account):
+    l = shell_command(f"id -Gn {account}").split()
+
+    # removing these two because we treat them separately
+    l.remove(account)
+    account_g = f"{account}_g"
+    if account_g in l:
+        l.remove(account_g)
+
+    return l
