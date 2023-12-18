@@ -52,3 +52,89 @@ The back-end provides 3 interface functions:
 - `quota_using_account`
 - `quota_using_project`
 - `quota_using_path`
+
+Let us consider an actual example. You need a configuration file where
+you can localize the settings. Every time you call an API function, you need
+to point it to the configuration file.
+
+Here is the configuration file we use for our clusters at
+[NRIS](https://documentation.sigma2.no/):
+```cfg
+[DEFAULT]
+file_system_prefix = /cluster/
+home_prefix = /cluster/home/
+scratch_prefix = /cluster/work/users/
+project_path_prefixes = /cluster/projects/, /cluster/shared/
+
+[saga]
+file_system = beegfs
+path_based = no
+
+[fram]
+file_system = lustre
+path_based = no
+
+[betzy]
+file_system = lustre
+path_based = yes
+```
+
+Now let us call the 3 API functions. The `pprint` used in the example below is
+only to make the returned dictionary more readable here:
+```python
+from pprint import pprint
+
+from dusage_backend import quota_using_project, quota_using_account, quota_using_path
+
+
+result = quota_using_project(
+    config_file="dusage.cfg", cluster="fram", project="nn1234k"
+)
+pprint(result)
+# {'/cluster/projects/nn1234k': {'inodes_hard_limit': 1000000,
+#                                'inodes_soft_limit': 1000000,
+#                                'inodes_used': 1,
+#                                'space_hard_limit_bytes': 1099511627776,
+#                                'space_soft_limit_bytes': 1099511627776,
+#                                'space_used_bytes': 4096}}
+
+
+result = quota_using_account(config_file="dusage.cfg", cluster="fram", account="somebody")
+pprint(result)
+# {'/cluster/': {'inodes_hard_limit': 3000000,
+#                'inodes_soft_limit': 1000000,
+#                'inodes_used': 68808,
+#                'space_hard_limit_bytes': None,
+#                'space_soft_limit_bytes': None,
+#                'space_used_bytes': 265590661120},
+#  '/cluster/home/somebody': {'inodes_hard_limit': 120000,
+#                             'inodes_soft_limit': 100000,
+#                             'inodes_used': 42978,
+#                             'space_hard_limit_bytes': 32212254720,
+#                             'space_soft_limit_bytes': 21474836480,
+#                             'space_used_bytes': 1907675136},
+#  '/cluster/projects/nn1234k': {'inodes_hard_limit': 1000000,
+#                                'inodes_soft_limit': 1000000,
+#                                'inodes_used': 1,
+#                                'space_hard_limit_bytes': 1099511627776,
+#                                'space_soft_limit_bytes': 1099511627776,
+#                                'space_used_bytes': 4096},
+#  '/cluster/work/users/somebody': {'inodes_hard_limit': None,
+#                                   'inodes_soft_limit': None,
+#                                   'inodes_used': 3763,
+#                                   'space_hard_limit_bytes': None,
+#                                   'space_soft_limit_bytes': None,
+#                                   'space_used_bytes': 261778743296}}
+
+
+result = quota_using_path(
+    config_file="dusage.cfg", cluster="fram", path="/cluster/home/somebody"
+)
+pprint(result)
+# {'/cluster/home/somebody': {'inodes_hard_limit': None,
+#                             'inodes_soft_limit': None,
+#                             'inodes_used': 'unknown',
+#                             'space_hard_limit_bytes': None,
+#                             'space_soft_limit_bytes': None,
+#                             'space_used_bytes': 'unknown'}}
+```
