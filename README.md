@@ -88,9 +88,10 @@ from dusage_backend import quota_using_project, quota_using_account, quota_using
 
 
 result = quota_using_project(
-    config_file="dusage.cfg", cluster="fram", project="nn1234k"
+    config_file="dusage.cfg", cluster="betzy", project="nn1234k"
 )
 pprint(result)
+# example output:
 # {'/cluster/projects/nn1234k': {'inodes_hard_limit': 1000000,
 #                                'inodes_soft_limit': 1000000,
 #                                'inodes_used': 1,
@@ -99,42 +100,32 @@ pprint(result)
 #                                'space_used_bytes': 4096}}
 
 
-result = quota_using_account(config_file="dusage.cfg", cluster="fram", account="somebody")
+result = quota_using_account(config_file="dusage.cfg", cluster="betzy", account="somebody")
 pprint(result)
-# {'/cluster/': {'inodes_hard_limit': 3000000,
-#                'inodes_soft_limit': 1000000,
-#                'inodes_used': 68808,
-#                'space_hard_limit_bytes': None,
-#                'space_soft_limit_bytes': None,
-#                'space_used_bytes': 265590661120},
-#  '/cluster/home/somebody': {'inodes_hard_limit': 120000,
+# example output:
+# {'/cluster/home/somebody': {'inodes_hard_limit': 110000,
 #                             'inodes_soft_limit': 100000,
-#                             'inodes_used': 42978,
+#                             'inodes_used': 1317,
 #                             'space_hard_limit_bytes': 32212254720,
 #                             'space_soft_limit_bytes': 21474836480,
-#                             'space_used_bytes': 1907675136},
+#                             'space_used_bytes': 369164288},
 #  '/cluster/projects/nn1234k': {'inodes_hard_limit': 1000000,
 #                                'inodes_soft_limit': 1000000,
 #                                'inodes_used': 1,
 #                                'space_hard_limit_bytes': 1099511627776,
 #                                'space_soft_limit_bytes': 1099511627776,
-#                                'space_used_bytes': 4096},
-#  '/cluster/work/users/somebody': {'inodes_hard_limit': None,
-#                                   'inodes_soft_limit': None,
-#                                   'inodes_used': 3763,
-#                                   'space_hard_limit_bytes': None,
-#                                   'space_soft_limit_bytes': None,
-#                                   'space_used_bytes': 261778743296}}
+#                                'space_used_bytes': 4096}}
 
 
 result = quota_using_path(
-    config_file="dusage.cfg", cluster="fram", path="/cluster/home/somebody"
+    config_file="dusage.cfg", cluster="betzy", path="/cluster/home/somebody"
 )
 pprint(result)
-# {'/cluster/home/somebody': {'inodes_hard_limit': None,
-#                             'inodes_soft_limit': None,
-#                             'inodes_used': 'unknown',
-#                             'space_hard_limit_bytes': None,
-#                             'space_soft_limit_bytes': None,
-#                             'space_used_bytes': 'unknown'}}
+# example output:
+# {'/cluster/home/somebody': {'inodes_hard_limit': 110000,
+#                             'inodes_soft_limit': 100000,
+#                             'inodes_used': 1317,
+#                             'space_hard_limit_bytes': 32212254720,
+#                             'space_soft_limit_bytes': 21474836480,
+#                             'space_used_bytes': 369164288}}
 ```
