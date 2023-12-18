@@ -45,7 +45,7 @@ Design choices:
 - Interface functions return a dictionary instead of a
   [dataclass](https://docs.python.org/3/library/dataclasses.html) (which we
   wanted to use initially) to work on old Python versions typically found on
-  clusters.
+  clusters (Python 3.7 is too new for some clusters).
 - All functions that start with an underscore are internal.
 
 The back-end provides 3 interface functions:
