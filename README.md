@@ -57,9 +57,9 @@ Let us consider an actual example. You need a configuration file where
 you can localize the settings. Every time you call an API function, you need
 to point it to the configuration file.
 
-Here is the configuration file we use for our clusters at
+Here is the configuration file (`dusage.cfg`) that we use for our clusters at
 [NRIS](https://documentation.sigma2.no/):
-```cfg
+```ini
 [DEFAULT]
 file_system_prefix = /cluster/
 home_prefix = /cluster/home/
