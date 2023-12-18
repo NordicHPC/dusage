@@ -25,7 +25,8 @@ Options:
 ## Separation into a front-end and a back-end
 
 This effort is on-going. The back-end is taking shape (see below), but the
-front-end still needs quite a bit of work.
+front-end still needs quite a bit of work. Essentially, the front-end is
+missing and the back-end is not yet used.
 
 
 ## Front-end
@@ -36,15 +37,16 @@ Work in progress. More documentation soon.
 ## Back-end
 
 Design choices:
-- No external library dependencies. Only depends on the standard library.
-- All functions that start with an underscore are internal.
 - All back-end code is contained within one file:
   [dusage_backend.py](_dusage/dusage_backend.py)
-- Interface functions return a dictionary instead of a `dataclass` (which we
-  wanted to use initially) to work on old
-  Python versions typically found on clusters.
 - Local configuration can be done outside the Python code. Example:
   [dusage.cfg](_dusage/dusage.cfg)
+- No external library dependencies. Only depends on the standard library.
+- Interface functions return a dictionary instead of a
+  [dataclass](https://docs.python.org/3/library/dataclasses.html) (which we
+  wanted to use initially) to work on old Python versions typically found on
+  clusters.
+- All functions that start with an underscore are internal.
 
 The back-end provides 3 interface functions:
 - `quota_using_account`
