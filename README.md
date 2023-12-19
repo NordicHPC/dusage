@@ -38,9 +38,12 @@ Options:
 
 ## Separation into a front-end and a back-end
 
-This effort is on-going. The back-end is taking shape (see below), but the
-front-end still needs quite a bit of work. Essentially, the front-end is
-missing and the back-end is not yet used.
+The code is divided into a [front-end](_dusage/dusage_frontend.py) and a
+[back-end]((_dusage/dusage_backend.py).
+
+The front-end calls the back-end under the hood, puts the results into a nice
+table, and colorizes them. You can also call the back-end directly if you need
+the numbers but want to present or use them differently.
 
 
 ## Front-end
