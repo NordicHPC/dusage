@@ -1,6 +1,8 @@
 # dusage
 
-Show disk usage and quota on a cluster. Supports BeeGFS and Lustre.
+Show disk usage and quota on a cluster. Supports
+[BeeGFS](https://en.wikipedia.org/wiki/BeeGFS) and
+[Lustre](https://en.wikipedia.org/wiki/Lustre_(file_system)).
 
 ![screenshot](img/screenshot.png)
 
