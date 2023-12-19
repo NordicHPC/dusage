@@ -1,8 +1,6 @@
 # dusage
 
-Show disk usage and quota on a cluster.
-Supports BeeGFS and Lustre but is probably still too hard-coded for "our" clusters
-and path locations.
+Show disk usage and quota on a cluster. Supports BeeGFS and Lustre.
 
 ![screenshot](img/screenshot.png)
 
@@ -14,11 +12,11 @@ $ dusage --help
 Usage: dusage [OPTIONS]
 
 Options:
-  -u, --user TEXT     The username to check (default: *****).
-  -p, --project TEXT  The allocation project.
-
-  --no-colors         Disable colors.
-  --help              Show this message and exit.
+  -u, --user TEXT       The username to check (default: *****).
+  -p, --project TEXT    The allocation project.
+  -d, --directory TEXT  The directory/path to check.
+  --no-colors           Disable colors.
+  --help                Show this message and exit.
 ```
 
 
