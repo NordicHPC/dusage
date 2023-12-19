@@ -39,7 +39,7 @@ Options:
 ## Separation into a front-end and a back-end
 
 The code is divided into a [front-end](_dusage/dusage_frontend.py) and a
-[back-end]((_dusage/dusage_backend.py).
+[back-end](_dusage/dusage_backend.py).
 
 The front-end calls the back-end under the hood, puts the results into a nice
 table, and colorizes them. You can also call the back-end directly if you need
