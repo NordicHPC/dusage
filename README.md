@@ -4,10 +4,14 @@ Show disk usage and quota on a cluster. Supports
 [BeeGFS](https://en.wikipedia.org/wiki/BeeGFS) and
 [Lustre](https://en.wikipedia.org/wiki/Lustre_(file_system)).
 
-Example output:
+
+## Example output
+
 ![screenshot](img/screenshot.png)
 
-Available options:
+
+## Available options
+
 ```console
 $ dusage --help
 
