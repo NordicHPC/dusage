@@ -7,7 +7,6 @@ Inspired by dusage (written by Lorand Szentannai).
 import sys
 import getpass
 import os
-import socket
 
 import colorful as cf
 from tabulate import tabulate
@@ -16,13 +15,6 @@ import click
 from dusage_backend import quota_using_project, quota_using_account, quota_using_path
 
 __version__ = "0.3.0-alpha"
-
-
-def get_hostname():
-    hostname = socket.gethostname()
-    parts = hostname.split(".")
-    if len(parts) > 0:
-        return parts[0]
 
 
 def bytes_to_human(n):
@@ -111,7 +103,7 @@ def main(user, project, directory, no_colors):
     if user is None:
         user = getpass.getuser()
 
-    hostname = get_hostname()
+    hostname = os.environ.get("DUSAGE_HOSTNAME", "undefined")
 
     script_dir = os.path.dirname(os.path.realpath(__file__))
     config_file = os.path.join(script_dir, "dusage.cfg")
