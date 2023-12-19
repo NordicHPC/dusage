@@ -1,22 +1,28 @@
 """
-Tool to print quota information (right now space and number of inodes, later we
-could also print compute quotas).
+Tool to print disk quota information.
 
 Inspired by dusage (written by Lorand Szentannai).
 """
 
-import subprocess
-from shutil import which
-import colorful as cf
-from tabulate import tabulate
-import re
-import click
 import sys
 import getpass
 import os
 import socket
 
+import colorful as cf
+from tabulate import tabulate
+import click
+
+from dusage_backend import quota_using_project, quota_using_account, quota_using_path
+
 __version__ = "0.3.0-alpha"
+
+
+def get_hostname():
+    hostname = socket.gethostname()
+    parts = hostname.split(".")
+    if len(parts) > 0:
+        return parts[0]
 
 
 def bytes_to_human(n):
@@ -36,197 +42,33 @@ def number_grouped(n):
     """
     Prints 1234567 as 1 234 567 to make it easier to read.
     """
-    if n.isdigit():
+    if str(n).isdigit():
         return str("{:,}".format(int(n)).replace(",", " "))
     else:
         return n
 
 
-def command_is_available(command) -> bool:
-    return which(command) is not None
-
-
-def shell_command(command):
-    try:
-        output = (
-            subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
-            .decode("utf-8")
-            .strip()
-        )
-    except subprocess.CalledProcessError as e:
-        sys.exit(colorize("ERROR: ", "red") + e.output.decode("utf-8"))
-    return output
-
-
-def anonymize_output(table, user, groups):
-    account_names = [user] + groups
+def anonymize_output(table, n):
     new_table = []
     for row in table:
         path = row[0]
-        for account in account_names:
-            if path.endswith(account):
-                path = path.replace(account, "*****")
-                break
+
+        # replace all characters except the first n with *
+        path = path[:n] + "*" * (len(path) - n)
+
         new_table.append([path] + row[1:])
     return new_table
 
 
-def extract_beegfs(flag, account, _path):
-    command = f"beegfs-ctl --getquota --{flag}id {account} --csv | grep {account}"
-    # 0-th element since we only consider the first pool
-    output = shell_command(command).split("\n")[0]
-    _, _, space_used, space_limit, inodes_used, inodes_limit = output.split(",")
-    if space_limit == "unlimited":
-        space_limit = "-"
-    if inodes_limit == "unlimited":
-        inodes_limit = "-"
-    space_limit_soft = space_limit
-    inodes_limit_soft = inodes_limit
-    return (
-        space_used,
-        space_limit_soft,
-        space_limit,
-        inodes_used,
-        inodes_limit_soft,
-        inodes_limit,
-    )
-
-
-def _extract_lustre_convert(command):
-    output = shell_command(command)
-    (
-        _,
-        space_used,
-        space_limit_soft,
-        space_limit,
-        _,
-        inodes_used,
-        inodes_limit_soft,
-        inodes_limit,
-        _,
-    ) = output.split()
-    space_used = space_used.replace("*", "")
-    inodes_used = inodes_used.replace("*", "")
-
-    # all numbers are in KiB
-    space_used = 1024 * int(space_used)
-    if space_limit_soft == "0":
-        space_limit_soft = "-"
-    else:
-        space_limit_soft = 1024 * int(space_limit_soft)
-    if space_limit == "0":
-        space_limit = "-"
-    else:
-        space_limit = 1024 * int(space_limit)
-
-    if inodes_limit_soft == "0":
-        inodes_limit_soft = "-"
-    if inodes_limit == "0":
-        inodes_limit = "-"
-
-    return (
-        space_used,
-        space_limit_soft,
-        space_limit,
-        inodes_used,
-        inodes_limit_soft,
-        inodes_limit,
-    )
-
-
-def extract_lustre(flag, account, path):
-    command = f"lfs quota -q -{flag} {account} /cluster | grep /cluster"
-    return _extract_lustre_convert(command)
-
-
-def extract_lustre_by_project_id(flag, account, path):
-    project_id = int(shell_command(f"lfs project -d {path} | awk '{{print $1}}'"))
-    if project_id == 0:
-        # workaround for projects on Betzy that do not have quota set
-        # in this case the path does not have quota and information would default
-        # to project ID 0 which on our cluser gave space used by entire cluster
-        return ("unknown", "-", "-", "unknown", "-", "-")
-
-    else:
-        command = f"lfs quota -q -p {project_id} /cluster"
-        return _extract_lustre_convert(command)
-
-
-def create_row(run_command_and_extract, flag, account, path, show_soft_limits):
-    (
-        space_used,
-        space_limit_soft,
-        space_limit,
-        inodes_used,
-        inodes_limit_soft,
-        inodes_limit,
-    ) = run_command_and_extract(flag, account, path)
-
-    if space_limit_soft != "-":
-        space_limit_soft = bytes_to_human(space_limit_soft)
-
-    if space_limit == "-":
-        space_ratio = 0.0
-    else:
-        space_ratio = float(space_used) / float(space_limit)
-        space_limit = bytes_to_human(space_limit)
-
-    if inodes_limit == "-":
-        inodes_ratio = 0.0
-    else:
-        inodes_ratio = float(inodes_used) / float(inodes_limit)
-
-    space_used = bytes_to_human(space_used)
-
-    if space_limit != "-":
-        if space_ratio > 0.7:
-            space_used = colorize(space_used, "orange")
-        if space_ratio > 0.85:
-            space_used = colorize(space_used, "red")
-
-    inodes_used = number_grouped(inodes_used)
-    if inodes_limit_soft != "-":
-        inodes_limit_soft = number_grouped(inodes_limit_soft)
-    if inodes_limit != "-":
-        inodes_limit = number_grouped(inodes_limit)
-        if inodes_ratio > 0.5:
-            inodes_used = colorize(inodes_used, "orange")
-        if inodes_ratio > 0.8:
-            inodes_used = colorize(inodes_used, "red")
-
-    if show_soft_limits:
-        return [
-            path,
-            space_used,
-            space_limit_soft,
-            space_limit,
-            inodes_used,
-            inodes_limit_soft,
-            inodes_limit,
-        ]
-    else:
-        return [
-            path,
-            space_used,
-            space_limit,
-            inodes_used,
-            inodes_limit,
-        ]
-
-
-def row_worth_showing(row):
-    inodes_used = row[4]
-    return inodes_used != "0"
-
-
-def collect_groups(account):
-    l = shell_command(f"id -Gn {account}").split()
-    # removing these two because we treat them separately outside
-    l.remove(account)
-    account_g = f"{account}_g"
-    if account_g in l:
-        l.remove(account_g)
-    return l
+def color_by_ratio(used, limit):
+    # if both are integers
+    if str(used).isdigit() and str(limit).isdigit():
+        ratio = float(used) / float(limit)
+        if ratio > 0.85:
+            return "red"
+        if ratio > 0.7:
+            return "orange"
+    return "white"
 
 
 def colorize(text, color):
@@ -238,158 +80,85 @@ def dont_colorize(text, color):
     return text
 
 
-default_user = getpass.getuser()
-
-
 @click.command()
-@click.option("-u", "--user", help=f"The username to check (default: {default_user}).")
+@click.option(
+    "-u", "--user", help=f"The username to check (default: {getpass.getuser()})."
+)
 @click.option("-p", "--project", help=f"The allocation project.")
+@click.option("-d", "--directory", help=f"The directory/path to check.")
 @click.option(
     "--no-colors",
     is_flag=True,
     help="Disable colors.",
 )
-def main(user, project, no_colors):
+def main(user, project, directory, no_colors):
     cf.update_palette({"blue": "#2e54ff"})
     cf.update_palette({"green": "#08a91e"})
     cf.update_palette({"orange": "#ff5733"})
+    cf.update_palette({"red": "#c70039"})
 
     if no_colors:
         # redefine the colorize function to do nothing
         colorize.__code__ = dont_colorize.__code__
 
-    if user and project:
+    # only one of user, project, directory can be specified
+    if (user and project) or (user and directory) or (project and directory):
         sys.exit(
             colorize("ERROR: ", "red")
-            + "please specify user (-u) or project (-p) but not both"
+            + "please specify user (-u) or project (-p) or directory (-d) but not several at once"
         )
 
     if user is None:
-        user = default_user
+        user = getpass.getuser()
 
-    try:
-        _ = shell_command(f"id {user}")
-    except:
-        sys.exit(colorize("ERROR: ", "red") + f"user {user} not found")
+    hostname = get_hostname()
 
-    skip_user_rows = False
-    if project is not None:
-        skip_user_rows = True
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    config_file = os.path.join(script_dir, "dusage.cfg")
 
-    if command_is_available("beegfs-ctl"):
-        # this is a beegfs system
-        run_command_and_extract = extract_beegfs
-        show_soft_limits = False
-        headers = [
-            "path",
-            "space used",
-            "quota",
-            "files",
-            "quota",
-        ]
-    elif command_is_available("lfs"):
-        # this is a lustre system
-        if "betzy" in socket.gethostname().lower():
-            # sorry for this hardcoding
-            # please generalize if you know how to
-            run_command_and_extract = extract_lustre_by_project_id
-            skip_user_rows = True
-        else:
-            run_command_and_extract = extract_lustre
-        show_soft_limits = True
-        headers = [
-            "path",
-            "space used",
-            "quota (s)",
-            "quota (h)",
-            "files",
-            "quota (s)",
-            "quota (h)",
-        ]
+    if directory:
+        quota_info = quota_using_path(config_file, hostname, directory)
+    elif project:
+        quota_info = quota_using_project(config_file, hostname, project)
     else:
-        sys.exit("ERROR: unknown file system - this tool supports BeeGFS or Lustre")
+        quota_info = quota_using_account(config_file, hostname, user)
+
+    headers = [
+        "path",
+        "space used",
+        "quota (s)",
+        "quota (h)",
+        "files",
+        "quota (s)",
+        "quota (h)",
+    ]
 
     headers_blue = [colorize(h, "blue") for h in headers]
     table = []
 
-    if not skip_user_rows:
-        row = create_row(
-            run_command_and_extract,
-            "u",
-            f"{user}",
-            "/cluster",
-            show_soft_limits,
-        )
-        if row_worth_showing(row):
-            table.append(row)
-
-    if project is None:
-        row = create_row(
-            run_command_and_extract,
-            "g",
-            f"{user}_g",
-            f"/cluster/home/{user}",
-            show_soft_limits,
-        )
-        if row_worth_showing(row):
-            table.append(row)
-
-    if not skip_user_rows:
-        row = create_row(
-            run_command_and_extract,
-            "g",
-            user,
-            f"/cluster/work/users/{user}",
-            show_soft_limits,
-        )
-        if row_worth_showing(row):
-            table.append(row)
-
-    if project is None:
-        groups = collect_groups(user)
-    else:
-        groups = [project]
-
-    for group in groups:
-        # for the moment we don't list NIRD information since the quota
-        # information is incorrect anyway at the moment
-        if not re.match("ns[0-9][0-9][0-9][0-9]k", group.lower()):
-            for path in [f"/cluster/projects/{group}", f"/cluster/shared/{group}"]:
-                if os.path.isdir(
-                    path
-                ):  # some groups are not folders but only to control access
-                    row = create_row(
-                        run_command_and_extract, "g", group, path, show_soft_limits
-                    )
-                    if row_worth_showing(row):
-                        table.append(row)
+    for k, v in quota_info.items():
+        color_space = color_by_ratio(v["space_used_bytes"], v["space_soft_limit_bytes"])
+        color_inodes = color_by_ratio(v["inodes_used"], v["inodes_soft_limit"])
+        l = [
+            k,
+            colorize(bytes_to_human(v["space_used_bytes"]), color_space),
+            bytes_to_human(v["space_soft_limit_bytes"]),
+            bytes_to_human(v["space_hard_limit_bytes"]),
+            colorize(number_grouped(v["inodes_used"]), color_inodes),
+            number_grouped(v["inodes_soft_limit"]),
+            number_grouped(v["inodes_hard_limit"]),
+        ]
+        table.append(l)
 
     # for creating screenshots
     if os.environ.get("DUSAGE_ANONYMIZE_OUTPUT"):
-        table = anonymize_output(table, user, groups)
+        table = anonymize_output(table, 14)
 
-    if table == [] and project is not None:
-        sys.exit(
-            colorize("ERROR: ", "red") + f"the project {project} does not seem to exist"
-        )
+    print(f"\ndusage v{__version__}\n")
 
-    print()
-    print(f"dusage v{__version__}")
     print(tabulate(table, headers_blue, tablefmt="simple", stralign="right"))
-    if show_soft_limits:
-        print(
-            "\n- quota (s): Soft limit. You can stay above this by default for 1 week."
-        )
-        print(
-            "             You can check the actual grace period with `lfs quota -u -t /somepath`"
-        )
-        print(
-            "             or `lfs quota -g -t /somepath` or `lfs quota -p -t /somepath` (depending on the cluster)."
-        )
-        print(
-            "- quota (h): Hard limit. You need to move/remove data/files to be able to write."
-        )
-    print("- Please report issues at https://github.com/NordicHPC/dusage.")
+
+    print("\nPlease report issues at: https://github.com/NordicHPC/dusage")
 
 
 if __name__ == "__main__":
