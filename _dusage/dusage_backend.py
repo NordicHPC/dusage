@@ -252,3 +252,24 @@ def quota_using_account(config_file, cluster, account):
         _stop_with_error(f"file system {file_system} is not implemented")
 
     return _quota_using_account(account, config, _quota_using_option, _quota_using_path)
+
+
+def _debug_quota_using_account(config_file, cluster, account):
+    return {
+        "/cluster/home/somebody": {
+            "inodes_hard_limit": 110000,
+            "inodes_soft_limit": 100000,
+            "inodes_used": 90000,
+            "space_hard_limit_bytes": 32212254720,
+            "space_soft_limit_bytes": 21474836480,
+            "space_used_bytes": 369164288,
+        },
+        "/cluster/projects/nn1234k": {
+            "inodes_hard_limit": 1000000,
+            "inodes_soft_limit": 1000000,
+            "inodes_used": 1,
+            "space_hard_limit_bytes": 1099511627776,
+            "space_soft_limit_bytes": 1099511627776,
+            "space_used_bytes": 800000000000,
+        },
+    }
