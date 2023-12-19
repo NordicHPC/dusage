@@ -18,6 +18,8 @@ __version__ = "0.3.0-alpha"
 
 
 def bytes_to_human(n):
+    if n is None:
+        return None
     try:
         n = int(n)
         for unit in ["", "KiB", "MiB", "GiB", "TiB", "PiB"]:
