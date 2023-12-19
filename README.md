@@ -4,10 +4,10 @@ Show disk usage and quota on a cluster. Supports
 [BeeGFS](https://en.wikipedia.org/wiki/BeeGFS) and
 [Lustre](https://en.wikipedia.org/wiki/Lustre_(file_system)).
 
+Example output:
 ![screenshot](img/screenshot.png)
 
 Available options:
-
 ```console
 $ dusage --help
 
@@ -24,12 +24,12 @@ Options:
 
 ## Installation
 
-1. Clone this repository
-2. Change into the `_dusage` folder
-3. Run the [install.sh](_dusage/install.sh) script inside the `_dusage` folder
-4. Adjust [dusage.cfg](_dusage/dusage.cfg) to your cluster
-5. Change `undefined_hostname` in [dusage](dusage)
-5. Run [dusage](dusage)
+1. Clone this repository.
+2. Change into the [_dusage](_dusage) folder.
+3. Run the [install.sh](_dusage/install.sh) script while being inside the [_dusage](_dusage) folder.
+4. Adjust [dusage.cfg](_dusage/dusage.cfg) to your cluster.
+5. Change "undefined_hostname" in [dusage](dusage) to an actual cluster name.
+5. Run [dusage](dusage).
 
 
 ## Separation into a front-end and a back-end
