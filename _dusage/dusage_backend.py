@@ -82,6 +82,11 @@ def _lustre_quota_using_command(command):
         _,
     ) = output.split()
 
+    # lustre adds a "*" if we are beyond quota
+    # here we remove that "*", otherwise it messes up the rest of the code
+    space_used_kib = space_used_kib.replace("*", "")
+    inodes_used = inodes_used.replace("*", "")
+
     # all space quota numbers are initially in KiB and we convert to bytes
     space_used_bytes = 1024 * int(space_used_kib)
     if space_soft_limit_kib == "0":
