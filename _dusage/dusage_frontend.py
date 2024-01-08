@@ -14,7 +14,7 @@ import click
 
 from dusage_backend import quota_using_project, quota_using_account, quota_using_path
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 
 
 def bytes_to_human(n):
@@ -58,9 +58,9 @@ def color_by_ratio(used, limit):
     # if both are integers
     if str(used).isdigit() and str(limit).isdigit():
         ratio = float(used) / float(limit)
-        if ratio > 0.85:
+        if ratio > 1.0:
             return "red"
-        if ratio > 0.7:
+        if ratio > 0.85:
             return "orange"
     return "white"
 
@@ -88,8 +88,8 @@ def dont_colorize(text, color):
 def main(user, project, directory, no_colors):
     cf.update_palette({"blue": "#2e54ff"})
     cf.update_palette({"green": "#08a91e"})
-    cf.update_palette({"orange": "#ff5733"})
-    cf.update_palette({"red": "#c70039"})
+#   cf.update_palette({"orange": "#ff5733"})
+#   cf.update_palette({"red": "#c70039"})
 
     if no_colors:
         # redefine the colorize function to do nothing
