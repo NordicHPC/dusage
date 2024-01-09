@@ -30,10 +30,13 @@ Options:
 
 1. Clone this repository.
 2. Change into the [_dusage](_dusage) folder.
-3. Run the [install.sh](_dusage/install.sh) script while being inside the [_dusage](_dusage) folder.
+3. Run the [install.sh](_dusage/install.sh) script while being inside the
+   [_dusage](_dusage) folder. This sets up a virtual environment for the
+   script.
 4. Adjust [dusage.cfg](_dusage/dusage.cfg) to your cluster.
 5. Change "undefined_hostname" in [dusage](dusage) to an actual cluster name.
-5. Run [dusage](dusage).
+   The cluster name needs to be listed in [dusage.cfg](_dusage/dusage.cfg).
+6. Run [dusage](dusage).
 
 
 ## Separation into a front-end and a back-end
