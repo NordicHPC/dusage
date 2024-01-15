@@ -140,7 +140,7 @@ def _lustre_quota_using_path(path, file_system_prefix):
             }
         }
     else:
-        command = f"lfs quota -q -p {project_id} {file_system_prefix}"
+        command = f"lfs quota -q -p {project_id} {file_system_prefix} | head -n 1"
         return {path: _lustre_quota_using_command(command)}
 
 
