@@ -14,7 +14,11 @@ import click
 
 from dusage_backend import quota_using_project, quota_using_account, quota_using_path
 
-__version__ = "0.3.3"
+__version__ = "0.3.4"
+
+
+def _stop_with_error(message):
+    sys.exit(colorize("ERROR: ", "red") + message)
 
 
 def bytes_to_human(n):
@@ -88,8 +92,8 @@ def dont_colorize(text, color):
 def main(user, project, directory, no_colors):
     cf.update_palette({"blue": "#2e54ff"})
     cf.update_palette({"green": "#08a91e"})
-#   cf.update_palette({"orange": "#ff5733"})
-#   cf.update_palette({"red": "#c70039"})
+    #   cf.update_palette({"orange": "#ff5733"})
+    #   cf.update_palette({"red": "#c70039"})
 
     if no_colors:
         # redefine the colorize function to do nothing
@@ -97,9 +101,8 @@ def main(user, project, directory, no_colors):
 
     # only one of user, project, directory can be specified
     if (user and project) or (user and directory) or (project and directory):
-        sys.exit(
-            colorize("ERROR: ", "red")
-            + "please specify user (-u) or project (-p) or directory (-d) but not several at once"
+        _stop_with_error(
+            "please specify user (-u) or project (-p) or directory (-d) but not several at once"
         )
 
     if user is None:
@@ -110,12 +113,15 @@ def main(user, project, directory, no_colors):
     script_dir = os.path.dirname(os.path.realpath(__file__))
     config_file = os.path.join(script_dir, "dusage.cfg")
 
-    if directory:
-        quota_info = quota_using_path(config_file, hostname, directory)
-    elif project:
-        quota_info = quota_using_project(config_file, hostname, project)
-    else:
-        quota_info = quota_using_account(config_file, hostname, user)
+    try:
+        if directory:
+            quota_info = quota_using_path(config_file, hostname, directory)
+        elif project:
+            quota_info = quota_using_project(config_file, hostname, project)
+        else:
+            quota_info = quota_using_account(config_file, hostname, user)
+    except ValueError:
+        _stop_with_error("not enough permission to access this information")
 
     headers = [
         "path",
