@@ -14,7 +14,7 @@ import click
 
 from dusage_backend import quota_using_project, quota_using_account, quota_using_path
 
-__version__ = "0.3.4"
+__version__ = "0.3.5"
 
 
 def _stop_with_error(message):
@@ -66,12 +66,15 @@ def color_by_ratio(used, limit):
             return "red"
         if ratio > 0.85:
             return "orange"
-    return "white"
+    return None
 
 
 def colorize(text, color):
-    # calls cf.color(text)
-    return getattr(cf, color)(text)
+    if color is None:
+        return text
+    else:
+        # calls cf.color(text)
+        return getattr(cf, color)(text)
 
 
 def dont_colorize(text, color):
