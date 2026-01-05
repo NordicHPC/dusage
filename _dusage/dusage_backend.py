@@ -40,35 +40,6 @@ def _shell_command(command):
     return output
 
 
-def _detect_beegfs_version():
-    """Detect which BeeGFS command is available.
-
-    Returns:
-        str: "legacy" for BeeGFS 7.x (beegfs-ctl), "modern" for BeeGFS 8.x (beegfs)
-    """
-    # Check if beegfs command exists (BeeGFS 8.x)
-    try:
-        subprocess.check_output(
-            "command -v beegfs",
-            shell=True,
-            stderr=subprocess.DEVNULL
-        )
-        return "modern"
-    except subprocess.CalledProcessError:
-        pass
-
-    # Check if beegfs-ctl command exists (BeeGFS 7.x)
-    try:
-        subprocess.check_output(
-            "command -v beegfs-ctl",
-            shell=True,
-            stderr=subprocess.DEVNULL
-        )
-        return "legacy"
-    except subprocess.CalledProcessError:
-        _stop_with_error("Neither beegfs nor beegfs-ctl command found")
-
-
 def _parse_beegfs_size(size_str):
     """Parse BeeGFS size string like '190.02GiB' to bytes."""
     size_str = size_str.strip()
@@ -123,7 +94,7 @@ def _parse_beegfs_count(count_str):
     return int(value * multipliers[unit])
 
 
-def _beegfs_quota_legacy(option, account):
+def _beegfs7_quota(option, account, _):
     """Query quota using legacy beegfs-ctl command (BeeGFS 7.x).
 
     Args:
@@ -171,7 +142,7 @@ def _beegfs_quota_legacy(option, account):
     }
 
 
-def _beegfs_quota_modern(option, account):
+def _beegfs8_quota(option, account, _):
     """Query quota using modern beegfs command (BeeGFS 8.x).
 
     Args:
@@ -241,33 +212,6 @@ def _beegfs_quota_modern(option, account):
         "inodes_soft_limit": inodes_limit,
         "inodes_hard_limit": inodes_limit,
     }
-
-
-def _beegfs_quota_using_option(option, account, _):
-    """Query BeeGFS quota, auto-detecting version.
-
-    Supports both BeeGFS 7.x (beegfs-ctl) and BeeGFS 8.x (beegfs).
-
-    Args:
-        option: "u" for user or "g" for group
-        account: username or group name
-        _: unused file_system_prefix parameter (for compatibility)
-
-    Returns:
-        dict: quota information with keys:
-            - space_used_bytes
-            - space_soft_limit_bytes
-            - space_hard_limit_bytes
-            - inodes_used
-            - inodes_soft_limit
-            - inodes_hard_limit
-    """
-    version = _detect_beegfs_version()
-
-    if version == "legacy":
-        return _beegfs_quota_legacy(option, account)
-    else:  # modern
-        return _beegfs_quota_modern(option, account)
 
 
 def _lustre_quota_using_command(command):
@@ -424,7 +368,7 @@ def quota_using_path(config_file, cluster, path):
 
     if file_system == "lustre":
         return _lustre_quota_using_path(path, file_system_prefix)
-    elif file_system == "beegfs":
+    elif file_system in ("beegfs", "beegfs7", "beegfs8"):
         _stop_with_error("path-based query not implemented for beegfs")
     else:
         _stop_with_error(f"file system {file_system} is not implemented")
@@ -437,8 +381,11 @@ def quota_using_project(config_file, cluster, project):
     if file_system == "lustre":
         _quota_using_option = _lustre_quota_using_option
         _quota_using_path = _lustre_quota_using_path
-    elif file_system == "beegfs":
-        _quota_using_option = _beegfs_quota_using_option
+    elif file_system in ("beegfs", "beegfs7"):
+        _quota_using_option = _beegfs7_quota
+        _quota_using_path = _beegfs_quota_using_path
+    elif file_system == "beegfs8":
+        _quota_using_option = _beegfs8_quota
         _quota_using_path = _beegfs_quota_using_path
     else:
         _stop_with_error(f"file system {file_system} is not implemented")
@@ -453,8 +400,11 @@ def quota_using_account(config_file, cluster, account):
     if file_system == "lustre":
         _quota_using_option = _lustre_quota_using_option
         _quota_using_path = _lustre_quota_using_path
-    elif file_system == "beegfs":
-        _quota_using_option = _beegfs_quota_using_option
+    elif file_system in ("beegfs", "beegfs7"):
+        _quota_using_option = _beegfs7_quota
+        _quota_using_path = _beegfs_quota_using_path
+    elif file_system == "beegfs8":
+        _quota_using_option = _beegfs8_quota
         _quota_using_path = _beegfs_quota_using_path
     else:
         _stop_with_error(f"file system {file_system} is not implemented")
