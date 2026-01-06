@@ -1,7 +1,9 @@
 import sys
 import os
+import pwd
 import subprocess
 import configparser
+import re
 
 
 def _stop_with_error(message):
@@ -38,30 +40,175 @@ def _shell_command(command):
     return output
 
 
-def _beegfs_quota_using_option(option, account, _):
-    command = f"beegfs-ctl --getquota --{option}id {account} --csv | grep {account}"
+def _parse_beegfs_size(size_str):
+    """Parse BeeGFS size string like '190.02GiB' to bytes."""
+    size_str = size_str.strip()
 
-    # 0-th element since we only consider the first pool
-    output = _shell_command(command).split("\n")[0]
+    # Extract number and unit
+    match = re.match(r'([\d.]+)([A-Za-z]*)', size_str)
+    if not match:
+        _stop_with_error(f"Cannot parse size: {size_str}")
 
-    _, _, space_used_bytes, space_limit_bytes, inodes_used, inodes_limit = output.split(
-        ","
-    )
+    value = float(match.group(1))
+    unit = match.group(2).upper()
 
-    if space_limit_bytes == "unlimited":
-        space_limit_bytes = None
+    # Convert to bytes
+    multipliers = {
+        'B': 1,
+        'KIB': 1024,
+        'MIB': 1024**2,
+        'GIB': 1024**3,
+        'TIB': 1024**4,
+        'PIB': 1024**5,
+    }
+
+    if unit not in multipliers:
+        _stop_with_error(f"Unknown size unit: {unit}")
+
+    return int(value * multipliers[unit])
+
+
+def _parse_beegfs_count(count_str):
+    """Parse BeeGFS count string like '836.44k' to integer."""
+    count_str = count_str.strip()
+
+    # Extract number and unit
+    match = re.match(r'([\d.]+)([A-Za-z]*)', count_str)
+    if not match:
+        _stop_with_error(f"Cannot parse count: {count_str}")
+
+    value = float(match.group(1))
+    unit = match.group(2).upper()
+
+    # Convert to count
+    multipliers = {
+        '': 1,
+        'K': 1000,
+        'M': 1000000,
+        'G': 1000000000,
+    }
+
+    if unit not in multipliers:
+        _stop_with_error(f"Unknown count unit: {unit}")
+
+    return int(value * multipliers[unit])
+
+
+def _beegfs7_quota(option, account, _):
+    """Query quota using legacy beegfs-ctl command (BeeGFS 7.x).
+
+    Args:
+        option: "u" for user or "g" for group
+        account: username or group name
+
+    Returns:
+        dict: quota information in standard format
+    """
+    # option is "u" for user or "g" for group
+    if option == "u":
+        option_name = "userid"
+    elif option == "g":
+        option_name = "groupid"
     else:
-        space_limit_bytes = int(space_limit_bytes)
-    if inodes_limit == "unlimited":
-        inodes_limit = None
-    else:
-        inodes_limit = int(inodes_limit)
+        _stop_with_error(f"Unknown option: {option}")
+
+    # Run beegfs-ctl command with CSV output
+    command = f"beegfs-ctl --getquota --{option_name} {account} --csv"
+    output = _shell_command(command).strip()
+
+    # Parse CSV output: name,id,space_used,space_limit,inodes_used,inodes_limit
+    # Example: mbjorgve,200697,204134154240,0,836440,0
+    lines = output.split('\n')
+    if len(lines) < 2:
+        _stop_with_error(f"Unexpected quota output format: {output}")
+
+    # Skip header line, use data line
+    data = lines[1].split(',')
+    if len(data) < 6:
+        _stop_with_error(f"Unexpected quota CSV format: {lines[1]}")
+
+    space_used_bytes = int(data[2])
+    space_limit_bytes = int(data[3]) if data[3] != "0" else None
+    inodes_used = int(data[4])
+    inodes_limit = int(data[5]) if data[5] != "0" else None
 
     return {
-        "space_used_bytes": int(space_used_bytes),
+        "space_used_bytes": space_used_bytes,
         "space_soft_limit_bytes": space_limit_bytes,
         "space_hard_limit_bytes": space_limit_bytes,
-        "inodes_used": int(inodes_used),
+        "inodes_used": inodes_used,
+        "inodes_soft_limit": inodes_limit,
+        "inodes_hard_limit": inodes_limit,
+    }
+
+
+def _beegfs8_quota(option, account, _):
+    """Query quota using modern beegfs command (BeeGFS 8.x).
+
+    Args:
+        option: "u" for user or "g" for group
+        account: username or group name
+
+    Returns:
+        dict: quota information in standard format
+    """
+    # option is "u" for user or "g" for group
+    if option == "u":
+        flag = "--uids"
+        type_filter = "user"
+    elif option == "g":
+        flag = "--gids"
+        type_filter = "group"
+    else:
+        _stop_with_error(f"Unknown option: {option}")
+
+    # For current user/groups, use "current" and filter by account name
+    # since only root can query arbitrary user/group IDs
+    current_user = pwd.getpwuid(os.getuid()).pw_name
+    current_groups = _shell_command("id -Gn").split()
+
+    if option == "u" and account == current_user:
+        account_arg = "current"
+        filter_name = account
+    elif option == "g" and account in current_groups:
+        account_arg = "current"
+        filter_name = account
+    else:
+        # Try with the account name directly (may fail if not root)
+        account_arg = account
+        filter_name = account
+
+    # Filter by both type and name to get the right entry
+    command = f"beegfs quota list-usage {flag} {account_arg} 2>/dev/null | grep -v '^INFO:' | tail -n +2 | grep '{type_filter}' | grep '^{filter_name} '"
+    output = _shell_command(command).strip()
+
+    if not output:
+        _stop_with_error(f"No quota information found for {option} {account}")
+
+    # Parse output: NAME ID TYPE POOL SPACE INODE
+    # Example: mbjorgve  200697  user  Default  190.02GiB/∞  836.44k/∞
+    parts = output.split()
+    if len(parts) < 6:
+        _stop_with_error(f"Unexpected quota output format: {output}")
+
+    space_field = parts[4]  # e.g., "190.02GiB/∞" or "190.02GiB/1.00TiB"
+    inode_field = parts[5]  # e.g., "836.44k/∞" or "100k/1.00M"
+
+    # Parse space (used/limit)
+    space_used_str, space_limit_str = space_field.split('/')
+    space_used_bytes = _parse_beegfs_size(space_used_str)
+    space_limit_bytes = None if space_limit_str == '∞' else _parse_beegfs_size(space_limit_str)
+
+    # Parse inodes (used/limit)
+    inode_used_str, inode_limit_str = inode_field.split('/')
+    inodes_used = _parse_beegfs_count(inode_used_str)
+    inodes_limit = None if inode_limit_str == '∞' else _parse_beegfs_count(inode_limit_str)
+
+    return {
+        "space_used_bytes": space_used_bytes,
+        "space_soft_limit_bytes": space_limit_bytes,
+        "space_hard_limit_bytes": space_limit_bytes,
+        "inodes_used": inodes_used,
         "inodes_soft_limit": inodes_limit,
         "inodes_hard_limit": inodes_limit,
     }
@@ -221,7 +368,7 @@ def quota_using_path(config_file, cluster, path):
 
     if file_system == "lustre":
         return _lustre_quota_using_path(path, file_system_prefix)
-    elif file_system == "beegfs":
+    elif file_system in ("beegfs", "beegfs7", "beegfs8"):
         _stop_with_error("path-based query not implemented for beegfs")
     else:
         _stop_with_error(f"file system {file_system} is not implemented")
@@ -234,8 +381,11 @@ def quota_using_project(config_file, cluster, project):
     if file_system == "lustre":
         _quota_using_option = _lustre_quota_using_option
         _quota_using_path = _lustre_quota_using_path
-    elif file_system == "beegfs":
-        _quota_using_option = _beegfs_quota_using_option
+    elif file_system in ("beegfs", "beegfs7"):
+        _quota_using_option = _beegfs7_quota
+        _quota_using_path = _beegfs_quota_using_path
+    elif file_system == "beegfs8":
+        _quota_using_option = _beegfs8_quota
         _quota_using_path = _beegfs_quota_using_path
     else:
         _stop_with_error(f"file system {file_system} is not implemented")
@@ -250,8 +400,11 @@ def quota_using_account(config_file, cluster, account):
     if file_system == "lustre":
         _quota_using_option = _lustre_quota_using_option
         _quota_using_path = _lustre_quota_using_path
-    elif file_system == "beegfs":
-        _quota_using_option = _beegfs_quota_using_option
+    elif file_system in ("beegfs", "beegfs7"):
+        _quota_using_option = _beegfs7_quota
+        _quota_using_path = _beegfs_quota_using_path
+    elif file_system == "beegfs8":
+        _quota_using_option = _beegfs8_quota
         _quota_using_path = _beegfs_quota_using_path
     else:
         _stop_with_error(f"file system {file_system} is not implemented")
