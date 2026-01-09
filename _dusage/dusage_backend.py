@@ -4,6 +4,7 @@ import pwd
 import subprocess
 import configparser
 import re
+import json
 
 
 def _stop_with_error(message):
@@ -178,29 +179,33 @@ def _beegfs8_quota(option, account, _):
         account_arg = account
         filter_name = account
 
-    # Filter by both type and name to get the right entry
-    command = f"beegfs quota list-usage {flag} {account_arg} 2>/dev/null | grep -v '^INFO:' | tail -n +2 | grep '{type_filter}' | grep '^{filter_name} '"
-    output = _shell_command(command).strip()
+    command = f"beegfs quota list-usage --output ndjson {flag} {account_arg}"
+    output_raw = _shell_command(command)
 
-    if not output:
-        _stop_with_error(f"No quota information found for {option} {account}")
+    record = None
+    for line in output_raw.splitlines():
+        line = line.strip()
+        if not line or line.startswith("INFO"):
+            continue
 
-    # Parse output: NAME ID TYPE POOL SPACE INODE
-    # Example: mbjorgve  200697  user  Default  190.02GiB/∞  836.44k/∞
-    parts = output.split()
-    if len(parts) < 6:
-        _stop_with_error(f"Unexpected quota output format: {output}")
+        try:
+            data = json.loads(line)
+            if data["type"] == type_filter and data["name"] == account:
+                record = data
+                break
+        except json.JSONDecodeError as e:
+            _stop_with_error("Failed to parse `beegfs quota list-usage` output")
 
-    space_field = parts[4]  # e.g., "190.02GiB/∞" or "190.02GiB/1.00TiB"
-    inode_field = parts[5]  # e.g., "836.44k/∞" or "100k/1.00M"
-
+    if not record:
+        return None
+    
     # Parse space (used/limit)
-    space_used_str, space_limit_str = space_field.split('/')
+    space_used_str, space_limit_str = record["space"].split("/")
     space_used_bytes = _parse_beegfs_size(space_used_str)
     space_limit_bytes = None if space_limit_str == '∞' else _parse_beegfs_size(space_limit_str)
 
     # Parse inodes (used/limit)
-    inode_used_str, inode_limit_str = inode_field.split('/')
+    inode_used_str, inode_limit_str = record["inode"].split("/")
     inodes_used = _parse_beegfs_count(inode_used_str)
     inodes_limit = None if inode_limit_str == '∞' else _parse_beegfs_count(inode_limit_str)
 
@@ -322,23 +327,18 @@ def _quota_using_account(account, config, _quota_using_option, _quota_using_path
         for _, path in _valid_project_paths(groups, project_path_prefixes):
             d.update(_quota_using_path(path, file_system_prefix))
     else:
-        d.update(
-            {file_system_prefix: _quota_using_option("u", account, file_system_prefix)}
-        )
-        d.update(
-            {
-                os.path.join(home_prefix, account): _quota_using_option(
-                    "g", account + "_g", file_system_prefix
-                )
-            }
-        )
-        d.update(
-            {
-                os.path.join(scratch_prefix, account): _quota_using_option(
-                    "g", account, file_system_prefix
-                )
-            }
-        )
+        res_u = _quota_using_option("u", account, file_system_prefix)
+        if res_u:
+            d[file_system_prefix] = res_u
+        
+        res_home = _quota_using_option("g", account + "_g", file_system_prefix)
+        if res_home:
+            d[os.path.join(home_prefix, account)] = res_home
+
+        res_scratch = _quota_using_option("g", account, file_system_prefix)
+        if res_scratch:
+            d[os.path.join(scratch_prefix, account)] = res_scratch
+        
         for group, path in _valid_project_paths(groups, project_path_prefixes):
             d.update(_quota_using_path(path, file_system_prefix))
             d.update({path: _quota_using_option("g", group, file_system_prefix)})
