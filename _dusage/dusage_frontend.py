@@ -14,7 +14,7 @@ import click
 
 from dusage_backend import quota_using_project, quota_using_account, quota_using_path
 
-__version__ = "0.3.7"
+__version__ = "0.3.8"
 
 
 def _stop_with_error(message):
