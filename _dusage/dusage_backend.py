@@ -340,8 +340,12 @@ def _quota_using_account(account, config, _quota_using_option, _quota_using_path
             d[os.path.join(scratch_prefix, account)] = res_scratch
         
         for group, path in _valid_project_paths(groups, project_path_prefixes):
-            d.update(_quota_using_path(path, file_system_prefix))
-            d.update({path: _quota_using_option("g", group, file_system_prefix)})
+            quota_path = _quota_using_path(path, file_system_prefix)
+            quota_option = _quota_using_option("g", group, file_system_prefix)
+
+            if isinstance(quota_path, dict) and isinstance(quota_option, dict):
+                d.update(quota_path)
+                d.update({path: quota_option})
     return d
 
 
