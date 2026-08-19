@@ -319,6 +319,25 @@ def _valid_project_paths(projects, project_path_prefixes):
     return result
 
 
+def _project_path_quota_entries(
+        entities, 
+        project_path_prefixes, 
+        file_system_prefix, 
+        _quota_using_path, 
+        _quota_using_option
+    ):
+    d = {}
+    for group, path in _valid_project_paths(entities, project_path_prefixes):
+        quota_path = _quota_using_path(path, file_system_prefix)
+        quota_option = _quota_using_option("g", group, file_system_prefix)
+
+        if isinstance(quota_path, dict) and isinstance(quota_option, dict):
+            d |= quota_path
+            d[path] = quota_option
+
+    return d
+
+
 def _quota_using_account(account, config, _quota_using_option, _quota_using_path):
     file_system_prefix = _get_option(config, "file_system_prefix")
     home_prefix = _get_option(config, "home_prefix")
@@ -347,14 +366,15 @@ def _quota_using_account(account, config, _quota_using_option, _quota_using_path
         res_scratch = _quota_using_option("g", account, file_system_prefix)
         if res_scratch:
             d[os.path.join(scratch_prefix, account)] = res_scratch
-        
-        for group, path in _valid_project_paths(groups, project_path_prefixes):
-            quota_path = _quota_using_path(path, file_system_prefix)
-            quota_option = _quota_using_option("g", group, file_system_prefix)
 
-            if isinstance(quota_path, dict) and isinstance(quota_option, dict):
-                d.update(quota_path)
-                d.update({path: quota_option})
+        d |= _project_path_quota_entries(
+            groups, 
+            project_path_prefixes, 
+            file_system_prefix, 
+            _quota_using_path, 
+            _quota_using_option
+        )
+
     return d
 
 
@@ -368,9 +388,14 @@ def _quota_using_project(project, config, _quota_using_option, _quota_using_path
         for _, path in _valid_project_paths([project], project_path_prefixes):
             d.update(_quota_using_path(path, file_system_prefix))
     else:
-        for group, path in _valid_project_paths([project], project_path_prefixes):
-            d.update(_quota_using_path(path, file_system_prefix))
-            d.update({path: _quota_using_option("g", group, file_system_prefix)})
+        d |= _project_path_quota_entries(
+            [project],
+            project_path_prefixes, 
+            file_system_prefix, 
+            _quota_using_path, 
+            _quota_using_option
+        )
+
     return d
 
 
