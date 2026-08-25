@@ -1,6 +1,7 @@
 import sys
 import os
 import pwd
+import grp
 import subprocess
 import configparser
 import re
@@ -168,16 +169,24 @@ def _beegfs8_quota(option, account, _):
     current_user = pwd.getpwuid(os.getuid()).pw_name
     current_groups = _shell_command("id -Gn").split()
 
-    if option == "u" and account == current_user:
-        account_arg = "current"
-        filter_name = account
-    elif option == "g" and account in current_groups:
-        account_arg = "current"
-        filter_name = account
-    else:
-        # Try with the account name directly (may fail if not root)
-        account_arg = account
-        filter_name = account
+    if option == "u":
+        if account == current_user:
+            account_arg = "current"
+        else:
+            try:
+                user_id = pwd.getpwnam(account).pw_uid
+                account_arg = user_id
+            except KeyError:
+                _stop_with_error(f"User name not found: '{account}'")
+    elif option == "g":
+        if account in current_groups:
+            account_arg = "current"
+        else:
+            try:
+                group_id = grp.getgrnam(account).gr_gid
+                account_arg = group_id
+            except KeyError:
+                _stop_with_error(f"Group name not found: '{account}'")
 
     command = f"beegfs quota list-usage --output ndjson {flag} {account_arg}"
     output_raw = _shell_command(command)
